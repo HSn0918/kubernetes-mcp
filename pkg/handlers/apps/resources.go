@@ -11,9 +11,11 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 // ResourceHandlerImpl Apps资源处理程序实现
@@ -135,11 +137,6 @@ func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.DeleteResource)
 }
 
-// 以下为核心实现方法，为了简化代码，重用之前ResourceHandlerImpl的业务逻辑实现
-
-// 从core.ResourceHandlerImpl直接复制过来的核心方法调用代码
-// 实际使用时可以考虑共享这些逻辑或通过嵌入组合方式实现
-
 // ListResources 实现接口方法
 func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
@@ -245,13 +242,45 @@ func (h *ResourceHandlerImpl) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源获取逻辑
 	h.Log.Info("Getting Apps resource")
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+	apiVersion, _ := arguments["apiVersion"].(string)
+	name, _ := arguments["name"].(string)
+	namespace, _ := arguments["namespace"].(string)
+	h.Log.Info("Getting Apps resource",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"name", name,
+		"namespace", namespace,
+	)
+	// 解析GroupVersionKind
+	gvk := utils.ParseGVK(apiVersion, kind)
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	err := h.Client.Get(ctx, clientpkg.ObjectKey{Namespace: namespace, Name: name}, obj)
+	if err != nil {
+		h.Log.Error("Failed to get Apps resource",
+			"kind", kind,
+			"name", name,
+			"namespace", namespace,
+			"error", err,
+		)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("apps resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+		}
+		return nil, fmt.Errorf("failed to get Apps resource (Kind: %s, Name: %s): %v", kind, name, err)
+	}
+	h.Log.Info("Apps resource retrieved successfully",
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+	)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Apps resource fetch not implemented yet",
+				Text: fmt.Sprintf("YAML for %s '%s' in namespace '%s':\n\n%s", kind, name, namespace, obj),
 			},
 		},
 	}, nil
@@ -262,13 +291,26 @@ func (h *ResourceHandlerImpl) CreateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源创建逻辑
+	arguments := request.Params.Arguments
+	yamlStr, _ := arguments["yaml"].(string)
 	h.Log.Info("Creating Apps resource")
+	obj := &unstructured.Unstructured{}
+	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
+	if err != nil {
+		h.Log.Error("Failed to parse YAML", "error", err)
+		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+	}
+	h.Log.Debug("Parsed resource from YAML",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
+	err = h.Client.Create(ctx, obj)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Apps resource creation not implemented yet",
+				Text: fmt.Sprintf("Apps resource '%s/%s' created successfully in namespace %s", obj.GetKind(), obj.GetName(), obj.GetNamespace()),
 			},
 		},
 	}, nil
@@ -279,13 +321,42 @@ func (h *ResourceHandlerImpl) UpdateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源更新逻辑
-	h.Log.Info("Updating Apps resource")
+	arguments := request.Params.Arguments
+	yamlStr, _ := arguments["yaml"].(string)
+	h.Log.Info("Updating resource from YAML")
+	obj := &unstructured.Unstructured{}
+	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
+	if err != nil {
+		h.Log.Error("Failed to parse YAML", "error", err)
+		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+	}
+	h.Log.Debug("Parsed resource from YAML",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
+	err = h.Client.Update(ctx, obj)
+
+	if err != nil {
+		h.Log.Error("Failed to update resource",
+			"kind", obj.GetKind(),
+			"name", obj.GetName(),
+			"namespace", obj.GetNamespace(),
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to update resource: %v", err)
+	}
+	h.Log.Info("Resource updated successfully",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Apps resource update not implemented yet",
+				Text: fmt.Sprintf("Apps resource '%s/%s' updated successfully in namespace %s", obj.GetKind(), obj.GetName(), obj.GetNamespace()),
 			},
 		},
 	}, nil
@@ -296,8 +367,39 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源删除逻辑
-	h.Log.Info("Deleting Apps resource")
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+
+	apiVersion, _ := arguments["apiVersion"].(string)
+	name, _ := arguments["name"].(string)
+	namespace, _ := arguments["namespace"].(string)
+
+	h.Log.Info("Deleting Apps resource",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"name", name,
+		"namespace", namespace,
+	)
+	gvk := utils.ParseGVK(apiVersion, kind)
+
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	err := h.Client.Delete(ctx, obj)
+	if err != nil {
+		h.Log.Error("Failed to delete resource",
+			"kind", kind,
+			"name", name,
+			"namespace", namespace,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to delete resource: %v", err)
+	}
+	h.Log.Info("Resource deleted successfully",
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+	)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{

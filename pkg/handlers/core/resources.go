@@ -11,6 +11,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -233,6 +234,9 @@ func (h *ResourceHandlerImpl) GetResource(
 			"namespace", namespace,
 			"error", err,
 		)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("core resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+		}
 		return nil, fmt.Errorf("failed to get resource: %v", err)
 	}
 
