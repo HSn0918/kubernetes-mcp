@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -27,13 +27,13 @@ type sseServer struct {
 
 // serverFactoryImpl 服务器工厂实现
 type serverFactoryImpl struct {
-	handlerProvider handlers.HandlerProvider
+	handlerProvider interfaces.HandlerProvider
 }
 
 // 确保实现了接口
 var _ MCPServer = &stdioServer{}
 var _ MCPServer = &sseServer{}
-var _ ServerFactory = &serverFactoryImpl{}
+var _ Factory = &serverFactoryImpl{}
 
 // GetServer 实现接口方法
 func (s *stdioServer) GetServer() *server.MCPServer {
@@ -117,7 +117,7 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 }
 
 // NewServerFactory 创建新的服务器工厂
-func NewServerFactory(handlerProvider handlers.HandlerProvider) ServerFactory {
+func NewServerFactory(handlerProvider interfaces.HandlerProvider) Factory {
 	return &serverFactoryImpl{
 		handlerProvider: handlerProvider,
 	}

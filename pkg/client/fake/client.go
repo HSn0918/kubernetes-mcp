@@ -13,19 +13,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-// FakeKubernetesClient is a mock client for testing.
+// KubernetesClient is a mock client for testing.
 // It embeds ctrlclient.Client to avoid manually implementing all methods.
-type FakeKubernetesClient struct {
+type KubernetesClient struct {
 	ctrlclient.Client // Embed the fake client directly
 }
 
-// Ensure FakeKubernetesClient implements KubernetesClient interface
+// Ensure KubernetesClient implements KubernetesClient interface
 // (We redefine the interface methods to ensure they are present,
 // although embedding covers most implementations).
-var _ client.KubernetesClient = &FakeKubernetesClient{}
+var _ client.KubernetesClient = &KubernetesClient{}
 
 // NewFakeClient creates a new fake Kubernetes client with initialized scheme.
-func NewFakeClient(initObjs ...ctrlclient.Object) *FakeKubernetesClient {
+func NewFakeClient(initObjs ...ctrlclient.Object) *KubernetesClient {
 	scheme := runtime.NewScheme()
 
 	// Register standard Kubernetes types (IMPORTANT!)
@@ -40,7 +40,7 @@ func NewFakeClient(initObjs ...ctrlclient.Object) *FakeKubernetesClient {
 		// WithStatusSubresource(initObjs...) // If testing status updates
 		Build()
 
-	return &FakeKubernetesClient{
+	return &KubernetesClient{
 		Client: fakeClient,
 	}
 }
@@ -51,27 +51,27 @@ func NewFakeClient(initObjs ...ctrlclient.Object) *FakeKubernetesClient {
 // Since KubernetesClient currently *is* client.Client, embedding is sufficient.
 
 // Create forwards to the embedded fake client.
-func (f *FakeKubernetesClient) Create(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.CreateOption) error {
+func (f *KubernetesClient) Create(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.CreateOption) error {
 	return f.Client.Create(ctx, obj, opts...)
 }
 
 // Delete forwards to the embedded fake client.
-func (f *FakeKubernetesClient) Delete(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.DeleteOption) error {
+func (f *KubernetesClient) Delete(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.DeleteOption) error {
 	return f.Client.Delete(ctx, obj, opts...)
 }
 
 // Update forwards to the embedded fake client.
-func (f *FakeKubernetesClient) Update(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.UpdateOption) error {
+func (f *KubernetesClient) Update(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.UpdateOption) error {
 	return f.Client.Update(ctx, obj, opts...)
 }
 
 // Patch forwards to the embedded fake client.
-func (f *FakeKubernetesClient) Patch(ctx context.Context, obj ctrlclient.Object, patch ctrlclient.Patch, opts ...ctrlclient.PatchOption) error {
+func (f *KubernetesClient) Patch(ctx context.Context, obj ctrlclient.Object, patch ctrlclient.Patch, opts ...ctrlclient.PatchOption) error {
 	return f.Client.Patch(ctx, obj, patch, opts...)
 }
 
 // Get forwards to the embedded fake client.
-func (f *FakeKubernetesClient) Get(ctx context.Context, key ctrlclient.ObjectKey, obj ctrlclient.Object, opts ...ctrlclient.GetOption) error {
+func (f *KubernetesClient) Get(ctx context.Context, key ctrlclient.ObjectKey, obj ctrlclient.Object, opts ...ctrlclient.GetOption) error {
 	// Note: fake client GetOptions were added later. Ensure your controller-runtime version supports them if used.
 	// The base Get method without GetOption exists in older versions.
 	// return f.Client.Get(ctx, key, obj, opts...) // Use this if GetOption is supported
@@ -79,42 +79,42 @@ func (f *FakeKubernetesClient) Get(ctx context.Context, key ctrlclient.ObjectKey
 }
 
 // List forwards to the embedded fake client.
-func (f *FakeKubernetesClient) List(ctx context.Context, list ctrlclient.ObjectList, opts ...ctrlclient.ListOption) error {
+func (f *KubernetesClient) List(ctx context.Context, list ctrlclient.ObjectList, opts ...ctrlclient.ListOption) error {
 	return f.Client.List(ctx, list, opts...)
 }
 
 // DeleteAllOf forwards to the embedded fake client.
-func (f *FakeKubernetesClient) DeleteAllOf(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.DeleteAllOfOption) error {
+func (f *KubernetesClient) DeleteAllOf(ctx context.Context, obj ctrlclient.Object, opts ...ctrlclient.DeleteAllOfOption) error {
 	return f.Client.DeleteAllOf(ctx, obj, opts...)
 }
 
 // Status forwards to the embedded fake client's Status writer.
-func (f *FakeKubernetesClient) Status() ctrlclient.StatusWriter {
+func (f *KubernetesClient) Status() ctrlclient.StatusWriter {
 	return f.Client.Status()
 }
 
 // Scheme returns the scheme used by the fake client.
-func (f *FakeKubernetesClient) Scheme() *runtime.Scheme {
+func (f *KubernetesClient) Scheme() *runtime.Scheme {
 	return f.Client.Scheme()
 }
 
 // RESTMapper returns the RESTMapper used by the fake client.
-func (f *FakeKubernetesClient) RESTMapper() meta.RESTMapper {
+func (f *KubernetesClient) RESTMapper() meta.RESTMapper {
 	return f.Client.RESTMapper()
 }
 
 // SubResource forwards to the embedded fake client.
-func (f *FakeKubernetesClient) SubResource(subResource string) ctrlclient.SubResourceClient {
+func (f *KubernetesClient) SubResource(subResource string) ctrlclient.SubResourceClient {
 	return f.Client.SubResource(subResource)
 }
 
 // GroupVersionKindFor forwards to the embedded fake client.
-func (f *FakeKubernetesClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+func (f *KubernetesClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
 	return f.Client.GroupVersionKindFor(obj)
 }
 
 // IsObjectNamespaced forwards to the embedded fake client.
-func (f *FakeKubernetesClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+func (f *KubernetesClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 	return f.Client.IsObjectNamespaced(obj)
 }
 
@@ -124,7 +124,7 @@ func (f *FakeKubernetesClient) IsObjectNamespaced(obj runtime.Object) (bool, err
 // This requires more advanced mocking capabilities, often provided by libraries like mockery
 // or by customizing the fake client's reactor chain, which is complex.
 // The standard fake client doesn't easily support conditional errors per call without setup.
-// func (f *FakeKubernetesClient) SimulateNotFoundOnGet(key ctrlclient.ObjectKey, gvk schema.GroupVersionKind) {
+// func (f *KubernetesClient) SimulateNotFoundOnGet(key ctrlclient.ObjectKey, gvk schema.GroupVersionKind) {
 // 	// Implementation would involve adding a reactor to the fake client's tracker.
 // 	// reactor := &testingfake.ReactionFunc(func(action testingfake.Action) (handled bool, ret runtime.Object, err error) {
 // 	// 	if getAction, ok := action.(testingfake.GetAction); ok {
