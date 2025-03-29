@@ -1,4 +1,4 @@
-package handlers
+package core
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -16,34 +18,34 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// resourceHandlerImpl 资源处理程序实现
-type resourceHandlerImpl struct {
-	baseHandler
+// ResourceHandlerImpl 核心资源处理程序实现
+type ResourceHandlerImpl struct {
+	base.Handler
 }
 
 // 确保实现了接口
-var _ ResourceHandler = &resourceHandlerImpl{}
+var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
-// NewResourceHandler 创建新的资源处理程序
-func NewResourceHandler(client client.KubernetesClient) ResourceHandler {
-	return &resourceHandlerImpl{
-		baseHandler: newBaseHandler(client),
+// NewResourceHandler 创建新的核心资源处理程序
+func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
+	return &ResourceHandlerImpl{
+		Handler: base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.CoreAPIGroup),
 	}
 }
 
 // Handle 实现接口方法
-func (h *resourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 根据工具名称分派到具体的处理方法
 	switch request.Method {
-	case LIST_RESOURCES:
+	case base.LIST_RESOURCES:
 		return h.ListResources(ctx, request)
-	case GET_RESOURCE:
+	case base.GET_RESOURCE:
 		return h.GetResource(ctx, request)
-	case CREATE_RESOURCE:
+	case base.CREATE_RESOURCE:
 		return h.CreateResource(ctx, request)
-	case UPDATE_RESOURCE:
+	case base.UPDATE_RESOURCE:
 		return h.UpdateResource(ctx, request)
-	case DELETE_RESOURCE:
+	case base.DELETE_RESOURCE:
 		return h.DeleteResource(ctx, request)
 	default:
 		return nil, fmt.Errorf("unknown resource method: %s", request.Method)
@@ -51,18 +53,21 @@ func (h *resourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRe
 }
 
 // Register 实现接口方法
-func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
-	h.log.Info("Registering resource handlers")
+func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
+	h.Log.Info("Registering core resource handlers",
+		"scope", h.Scope,
+		"apiGroup", h.Group,
+	)
 
 	// 注册列出资源工具
-	server.AddTool(mcp.NewTool(LIST_RESOURCES,
-		mcp.WithDescription("List Kubernetes resources"),
+	server.AddTool(mcp.NewTool(base.LIST_RESOURCES,
+		mcp.WithDescription("List Kubernetes resources (Namespace-scoped)"),
 		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Pod, Deployment, Service, etc.)"),
+			mcp.Description("Kind of resource (Pod, Service, ConfigMap, etc.)"),
 			mcp.Required(),
 		),
 		mcp.WithString("apiVersion",
-			mcp.Description("API Version (v1, apps/v1, etc.)"),
+			mcp.Description("API Version (v1)"),
 			mcp.DefaultString("v1"),
 		),
 		mcp.WithString("namespace",
@@ -72,14 +77,14 @@ func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.ListResources)
 
 	// 注册获取资源工具
-	server.AddTool(mcp.NewTool(GET_RESOURCE,
-		mcp.WithDescription("Get a specific Kubernetes resource"),
+	server.AddTool(mcp.NewTool(base.GET_RESOURCE,
+		mcp.WithDescription("Get a specific Kubernetes resource (Namespace-scoped)"),
 		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Pod, Deployment, Service, etc.)"),
+			mcp.Description("Kind of resource (Pod, Service, ConfigMap, etc.)"),
 			mcp.Required(),
 		),
 		mcp.WithString("apiVersion",
-			mcp.Description("API Version (v1, apps/v1, etc.)"),
+			mcp.Description("API Version (v1)"),
 			mcp.DefaultString("v1"),
 		),
 		mcp.WithString("name",
@@ -93,7 +98,7 @@ func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.GetResource)
 
 	// 注册创建资源工具
-	server.AddTool(mcp.NewTool(CREATE_RESOURCE,
+	server.AddTool(mcp.NewTool(base.CREATE_RESOURCE,
 		mcp.WithDescription("Create a Kubernetes resource from YAML"),
 		mcp.WithString("yaml",
 			mcp.Description("YAML manifest of the resource"),
@@ -102,7 +107,7 @@ func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.CreateResource)
 
 	// 注册更新资源工具
-	server.AddTool(mcp.NewTool(UPDATE_RESOURCE,
+	server.AddTool(mcp.NewTool(base.UPDATE_RESOURCE,
 		mcp.WithDescription("Update a Kubernetes resource from YAML"),
 		mcp.WithString("yaml",
 			mcp.Description("YAML manifest of the resource"),
@@ -111,14 +116,14 @@ func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.UpdateResource)
 
 	// 注册删除资源工具
-	server.AddTool(mcp.NewTool(DELETE_RESOURCE,
-		mcp.WithDescription("Delete a Kubernetes resource"),
+	server.AddTool(mcp.NewTool(base.DELETE_RESOURCE,
+		mcp.WithDescription("Delete a Kubernetes resource (Namespace-scoped)"),
 		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Pod, Deployment, Service, etc.)"),
+			mcp.Description("Kind of resource (Pod, Service, ConfigMap, etc.)"),
 			mcp.Required(),
 		),
 		mcp.WithString("apiVersion",
-			mcp.Description("API Version (v1, apps/v1, etc.)"),
+			mcp.Description("API Version (v1)"),
 			mcp.DefaultString("v1"),
 		),
 		mcp.WithString("name",
@@ -133,7 +138,7 @@ func (h *resourceHandlerImpl) Register(server *server.MCPServer) {
 }
 
 // ListResources 实现接口方法
-func (h *resourceHandlerImpl) ListResources(
+func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
@@ -142,7 +147,7 @@ func (h *resourceHandlerImpl) ListResources(
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespace, _ := arguments["namespace"].(string)
 
-	h.log.Info("Listing resources",
+	h.Log.Info("Listing resources",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"namespace", namespace,
@@ -160,9 +165,9 @@ func (h *resourceHandlerImpl) ListResources(
 	})
 
 	// 列出资源
-	err := h.client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
+	err := h.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
 	if err != nil {
-		h.log.Error("Failed to list resources",
+		h.Log.Error("Failed to list resources",
 			"kind", kind,
 			"namespace", namespace,
 			"error", err,
@@ -178,7 +183,7 @@ func (h *resourceHandlerImpl) ListResources(
 		result.WriteString(fmt.Sprintf("Name: %s\n", item.GetName()))
 	}
 
-	h.log.Info("Resources listed successfully",
+	h.Log.Info("Resources listed successfully",
 		"kind", kind,
 		"namespace", namespace,
 		"count", len(list.Items),
@@ -195,7 +200,7 @@ func (h *resourceHandlerImpl) ListResources(
 }
 
 // GetResource 实现接口方法
-func (h *resourceHandlerImpl) GetResource(
+func (h *ResourceHandlerImpl) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
@@ -205,7 +210,7 @@ func (h *resourceHandlerImpl) GetResource(
 	name, _ := arguments["name"].(string)
 	namespace, _ := arguments["namespace"].(string)
 
-	h.log.Info("Getting resource",
+	h.Log.Info("Getting resource",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"name", name,
@@ -220,9 +225,9 @@ func (h *resourceHandlerImpl) GetResource(
 	obj.SetGroupVersionKind(gvk)
 
 	// 获取资源
-	err := h.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
+	err := h.Client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
 	if err != nil {
-		h.log.Error("Failed to get resource",
+		h.Log.Error("Failed to get resource",
 			"kind", kind,
 			"name", name,
 			"namespace", namespace,
@@ -234,7 +239,7 @@ func (h *resourceHandlerImpl) GetResource(
 	// 转换为YAML
 	yamlData, err := yaml.Marshal(obj.Object)
 	if err != nil {
-		h.log.Error("Failed to marshal resource to YAML",
+		h.Log.Error("Failed to marshal resource to YAML",
 			"kind", kind,
 			"name", name,
 			"error", err,
@@ -242,7 +247,7 @@ func (h *resourceHandlerImpl) GetResource(
 		return nil, fmt.Errorf("failed to marshal to YAML: %v", err)
 	}
 
-	h.log.Info("Resource retrieved successfully",
+	h.Log.Info("Resource retrieved successfully",
 		"kind", kind,
 		"name", name,
 		"namespace", namespace,
@@ -259,33 +264,33 @@ func (h *resourceHandlerImpl) GetResource(
 }
 
 // CreateResource 实现接口方法
-func (h *resourceHandlerImpl) CreateResource(
+func (h *ResourceHandlerImpl) CreateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	arguments := request.Params.Arguments
 	yamlStr, _ := arguments["yaml"].(string)
 
-	h.log.Info("Creating resource from YAML")
+	h.Log.Info("Creating resource from YAML")
 
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
-		h.log.Error("Failed to parse YAML", "error", err)
+		h.Log.Error("Failed to parse YAML", "error", err)
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
 
-	h.log.Debug("Parsed resource from YAML",
+	h.Log.Debug("Parsed resource from YAML",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
 	)
 
 	// 创建资源
-	err = h.client.Create(ctx, obj)
+	err = h.Client.Create(ctx, obj)
 	if err != nil {
-		h.log.Error("Failed to create resource",
+		h.Log.Error("Failed to create resource",
 			"kind", obj.GetKind(),
 			"name", obj.GetName(),
 			"namespace", obj.GetNamespace(),
@@ -294,7 +299,7 @@ func (h *resourceHandlerImpl) CreateResource(
 		return nil, fmt.Errorf("failed to create resource: %v", err)
 	}
 
-	h.log.Info("Resource created successfully",
+	h.Log.Info("Resource created successfully",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
@@ -312,33 +317,33 @@ func (h *resourceHandlerImpl) CreateResource(
 }
 
 // UpdateResource 实现接口方法
-func (h *resourceHandlerImpl) UpdateResource(
+func (h *ResourceHandlerImpl) UpdateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	arguments := request.Params.Arguments
 	yamlStr, _ := arguments["yaml"].(string)
 
-	h.log.Info("Updating resource from YAML")
+	h.Log.Info("Updating resource from YAML")
 
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
-		h.log.Error("Failed to parse YAML", "error", err)
+		h.Log.Error("Failed to parse YAML", "error", err)
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
 
-	h.log.Debug("Parsed resource from YAML",
+	h.Log.Debug("Parsed resource from YAML",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
 	)
 
 	// 更新资源
-	err = h.client.Update(ctx, obj)
+	err = h.Client.Update(ctx, obj)
 	if err != nil {
-		h.log.Error("Failed to update resource",
+		h.Log.Error("Failed to update resource",
 			"kind", obj.GetKind(),
 			"name", obj.GetName(),
 			"namespace", obj.GetNamespace(),
@@ -347,7 +352,7 @@ func (h *resourceHandlerImpl) UpdateResource(
 		return nil, fmt.Errorf("failed to update resource: %v", err)
 	}
 
-	h.log.Info("Resource updated successfully",
+	h.Log.Info("Resource updated successfully",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
@@ -365,7 +370,7 @@ func (h *resourceHandlerImpl) UpdateResource(
 }
 
 // DeleteResource 实现接口方法
-func (h *resourceHandlerImpl) DeleteResource(
+func (h *ResourceHandlerImpl) DeleteResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
@@ -375,7 +380,7 @@ func (h *resourceHandlerImpl) DeleteResource(
 	name, _ := arguments["name"].(string)
 	namespace, _ := arguments["namespace"].(string)
 
-	h.log.Info("Deleting resource",
+	h.Log.Info("Deleting resource",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"name", name,
@@ -392,9 +397,9 @@ func (h *resourceHandlerImpl) DeleteResource(
 	obj.SetNamespace(namespace)
 
 	// 删除资源
-	err := h.client.Delete(ctx, obj)
+	err := h.Client.Delete(ctx, obj)
 	if err != nil {
-		h.log.Error("Failed to delete resource",
+		h.Log.Error("Failed to delete resource",
 			"kind", kind,
 			"name", name,
 			"namespace", namespace,
@@ -403,7 +408,7 @@ func (h *resourceHandlerImpl) DeleteResource(
 		return nil, fmt.Errorf("failed to delete resource: %v", err)
 	}
 
-	h.log.Info("Resource deleted successfully",
+	h.Log.Info("Resource deleted successfully",
 		"kind", kind,
 		"name", name,
 		"namespace", namespace,
