@@ -306,6 +306,10 @@ func (h *ResourceHandlerImpl) CreateResource(
 		"namespace", obj.GetNamespace(),
 	)
 	err = h.Client.Create(ctx, obj)
+	if err != nil {
+		h.Log.Error("create apps failed")
+		return nil, fmt.Errorf("failed to create Apps resource: %v", err)
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
