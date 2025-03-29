@@ -36,7 +36,7 @@ func NewVersionCommand() *cobra.Command {
 			log := logger.GetLogger()
 
 			// 先打印 logo
-			fmt.Println(logo)
+			fmt.Printf(logo)
 
 			// 打印版本信息
 			versionInfo := fmt.Sprintf("Kubernetes-MCP version %s (commit: %s, build date: %s)\n",

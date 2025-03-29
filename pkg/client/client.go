@@ -122,6 +122,9 @@ func NewClient(cfg *config.Config) (KubernetesClient, error) {
 	if cfg.Kubeconfig != "" {
 		log.Debug("Using specified kubeconfig", "path", cfg.Kubeconfig)
 		restConfig, err = clientcmd.BuildConfigFromFlags("", cfg.Kubeconfig)
+		if err != nil {
+			return nil, fmt.Errorf("could not load kubeconfig: %v", err)
+		}
 	} else {
 		// 尝试从环境变量加载
 		kubeconfig := os.Getenv("KUBECONFIG")
