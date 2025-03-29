@@ -300,6 +300,10 @@ func (h *ResourceHandlerImpl) CreateResource(
 		h.Log.Error("Failed to parse YAML", "error", err)
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
+	if obj.GetNamespace() == "" {
+		obj.SetNamespace("default")
+		h.Log.Debug("Empty namespace, using default namespace")
+	}
 	h.Log.Debug("Parsed resource from YAML",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
