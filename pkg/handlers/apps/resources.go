@@ -141,7 +141,6 @@ func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 // 实际使用时可以考虑共享这些逻辑或通过嵌入组合方式实现
 
 // ListResources 实现接口方法
-// ListResources 实现接口方法
 func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
