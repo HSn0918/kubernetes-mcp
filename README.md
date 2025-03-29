@@ -133,10 +133,10 @@ The following MCP tools are registered based on Kubernetes API groups and action
 
 ### Apps API Group (apps/v1)
 ✅ `listAppsResources`: List Apps v1 namespace-scoped resources (Deployments, etc.)  
-❌ `getAppsResource`: Get Apps v1 resource  
-❌ `createAppsResource`: Create Apps v1 resource  
-❌ `updateAppsResource`: Update Apps v1 resource  
-❌ `deleteAppsResource`: Delete Apps v1 resource
+✅ `getAppsResource`: Get Apps v1 resource  
+✅ `createAppsResource`: Create Apps v1 resource  
+✅ `updateAppsResource`: Update Apps v1 resource  
+✅ `deleteAppsResource`: Delete Apps v1 resource
 
 ### Batch API Group (batch/v1)
 ❌ `listBatchResources`: List Batch v1 resources  

@@ -133,10 +133,10 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 
 ### Apps API 组 (apps/v1)
 ✅ `listAppsResources`：列出 Apps v1 命名空间作用域资源（Deployment 等）  
-❌ `getAppsResource`：获取 Apps v1 资源  
-❌ `createAppsResource`：创建 Apps v1 资源  
-❌ `updateAppsResource`：更新 Apps v1 资源  
-❌ `deleteAppsResource`：删除 Apps v1 资源
+✅ `getAppsResource`：获取 Apps v1 资源  
+✅ `createAppsResource`：创建 Apps v1 资源  
+✅ `updateAppsResource`：更新 Apps v1 资源  
+✅ `deleteAppsResource`：删除 Apps v1 资源
 
 ### Batch API 组 (batch/v1)
 ❌ `listBatchResources`：列出 Batch v1 资源  
