@@ -9,10 +9,24 @@ import (
 
 // 版本信息
 var (
-	Version   = "dev"
+	Version   = "0.1.0"
 	Commit    = "none"
 	BuildDate = "unknown"
 )
+
+// Logo ASCII 艺术字
+const logo = `
+ ██ ▄█▀ █    ██  ▄▄▄▄   ▓█████  ███▄ ▄███▓ ▄████▄   ██▓███  
+ ██▄█▒  ██  ▓██▒▓█████▄ ▓█   ▀ ▓██▒▀█▀ ██▒▒██▀ ▀█  ▓██░  ██▒
+▓███▄░ ▓██  ▒██░▒██▒ ▄██▒███   ▓██    ▓██░▒▓█    ▄ ▓██░ ██▓▒
+▓██ █▄ ▓▓█  ░██░▒██░█▀  ▒▓█  ▄ ▒██    ▒██ ▒▓▓▄ ▄██▒▒██▄█▓▒ ▒
+▒██▒ █▄▒▒█████▓ ░▓█  ▀█▓░▒████▒▒██▒   ░██▒▒ ▓███▀ ░▒██▒ ░  ░
+▒ ▒▒ ▓▒░▒▓▒ ▒ ▒ ░▒▓███▀▒░░ ▒░ ░░ ▒░   ░  ░░ ░▒ ▒  ░▒▓▒░ ░  ░
+░ ░▒ ▒░░░▒░ ░ ░ ▒░▒   ░  ░ ░  ░░  ░      ░  ░  ▒   ░▒ ░     
+░ ░░ ░  ░░░ ░ ░  ░    ░    ░   ░      ░   ░        ░░       
+░  ░      ░      ░         ░  ░       ░   ░ ░               
+                     ░                     ░                 
+`
 
 func NewVersionCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -20,10 +34,16 @@ func NewVersionCommand() *cobra.Command {
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
 			log := logger.GetLogger()
-			versionInfo := fmt.Sprintf("Kubernetes-mcp version %s (commit: %s, build date: %s)\n",
+
+			// 先打印 logo
+			fmt.Println(logo)
+
+			// 打印版本信息
+			versionInfo := fmt.Sprintf("Kubernetes-MCP version %s (commit: %s, build date: %s)\n",
 				Version, Commit, BuildDate)
 
 			fmt.Print(versionInfo)
+
 			log.Info("Version info displayed",
 				"version", Version,
 				"commit", Commit,
