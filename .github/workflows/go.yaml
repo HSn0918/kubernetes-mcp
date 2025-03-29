@@ -1,0 +1,59 @@
+# .github/workflows/ci.yaml
+name: Go CI
+
+# Controls when the workflow will run
+on:
+  push:
+    branches: [ main ] # Or your default branch name (e.g., master)
+  pull_request:
+    branches: [ main ] # Or your default branch name
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This job runs checks like build, lint, test
+  build-test:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout code
+        uses: actions/checkout@v4 # Use latest major version
+
+      # Sets up the specified Go version environment
+      - name: Set up Go
+        uses: actions/setup-go@v5 # Use latest major version
+        with:
+          go-version: '1.24' # Use the specific Go version you requested
+          cache: true # Enable caching for dependencies
+
+      # Optional: Display Go version
+      - name: Display Go version
+        run: go version
+
+      # Install linters and tools
+      # golangci-lint is a popular linter aggregator
+      # govulncheck scans for known vulnerabilities
+      - name: Install tools
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # Run linters
+      # Consider adding a .golangci.yml file for configuration
+      - name: Run golangci-lint
+        run: golangci-lint run ./...
+
+      # Run vulnerability check
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+      # Run tests with race detector enabled and verbose output
+      - name: Run tests
+        run: go test -v -race ./...
+
+      # Build the application to ensure it compiles
+      # Targeting the main package specifically
+      - name: Build application
+        run: go build -v ./cmd/kubernetes-mcp/...
