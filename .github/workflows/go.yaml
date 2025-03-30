@@ -5,6 +5,7 @@ name: Go CI and Docker Build (Go CI 与 Docker 构建)
 # 控制工作流触发的时机
 on:
   push:
+    branches: [ main ]
     # 只有推送 v*.*.* 格式的 Git 标签时触发 (例如 v1.0.0)
     tags:
       - 'v*.*.*'
