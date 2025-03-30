@@ -11,13 +11,13 @@ A server implementation of the Model Capable Protocol (MCP) designed for interac
 * **Multiple Transports:** Supports communication via standard I/O (`stdio`) or Server-Sent Events (`sse`).
 * **Resource Management Tools:** Exposes MCP tools for Kubernetes operations:
     * **Core API Group (v1):**
-        * Fully implemented: List namespace-scoped resources (`listResources`), Get resource YAML (`getResource`), Create from YAML (`createResource`), Update from YAML (`updateResource`), Delete resource (`deleteResource`).
+        * Fully implemented: List namespace-scoped resources (`listResources`), Get resource YAML (`getResource`), Create from YAML (`createResource`), Update from YAML (`updateResource`), Delete resource (`deleteResource`), podlog(`getPodLogs`).
         * Fully implemented: List cluster-scoped Namespaces (`listNamespaces`).
     * **Apps API Group (apps/v1):**
         * Implemented: List namespace-scoped resources (`listAppsResources`).
-        * Placeholders (Not Implemented): Get (`getAppsResource`), Create (`createAppsResource`), Update (`updateAppsResource`), Delete (`deleteAppsResource`).
+        * Fully implemented : Get (`getAppsResource`), Create (`createAppsResource`), Update (`updateAppsResource`), Delete (`deleteAppsResource`).
     * **Batch API Group (batch/v1):**
-        * Placeholders (Not Implemented): List (`listBatchResources`), Get (`getBatchResource`), Create (`createBatchResource`), Update (`updateBatchResource`), Delete (`deleteBatchResource`).
+        * Fully implemented: List (`listBatchResources`), Get (`getBatchResource`), Create (`createBatchResource`), Update (`updateBatchResource`), Delete (`deleteBatchResource`).
     * **Networking API Group (networking.k8s.io/v1):**
         * Placeholders (Not Implemented): List (`listNetworkingResources`), Get (`getNetworkingResource`), Create (`createNetworkingResource`), Update (`updateNetworkingResource`), Delete (`deleteNetworkingResource`).
 * **Configuration:** Configurable via command-line flags (transport, port, kubeconfig, logging level/format).

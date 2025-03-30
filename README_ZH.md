@@ -11,13 +11,13 @@
 * **多种传输方式：** 支持通过标准 I/O（`stdio`）或服务器发送事件（`sse`）进行通信。
 * **资源管理工具：** 公开用于 Kubernetes 操作的 MCP 工具：
     * **核心 API 组 (v1)：**
-        * 已完整实现：列出命名空间作用域资源（`listResources`），获取资源 YAML（`getResource`），从 YAML 创建（`createResource`），从 YAML 更新（`updateResource`），删除资源（`deleteResource`）。
+        * 已完整实现：列出命名空间作用域资源（`listResources`），获取资源 YAML（`getResource`），从 YAML 创建（`createResource`），从 YAML 更新（`updateResource`），删除资源（`deleteResource`），采集日志(`getPodLogs`)。
         * 已完整实现：列出集群作用域命名空间（`listNamespaces`）。
     * **Apps API 组 (apps/v1)：**
         * 已实现：列出命名空间作用域资源（`listAppsResources`）。
-        * 占位符（未实现）：获取（`getAppsResource`），创建（`createAppsResource`），更新（`updateAppsResource`），删除（`deleteAppsResource`）。
+        * 已实现：获取（`getAppsResource`），创建（`createAppsResource`），更新（`updateAppsResource`），删除（`deleteAppsResource`）。
     * **Batch API 组 (batch/v1)：**
-        * 占位符（未实现）：列出（`listBatchResources`），获取（`getBatchResource`），创建（`createBatchResource`），更新（`updateBatchResource`），删除（`deleteBatchResource`）。
+        * 已实现：列出（`listBatchResources`），获取（`getBatchResource`），创建（`createBatchResource`），更新（`updateBatchResource`），删除（`deleteBatchResource`）。
     * **Networking API 组 (networking.k8s.io/v1)：**
         * 占位符（未实现）：列出（`listNetworkingResources`），获取（`getNetworkingResource`），创建（`createNetworkingResource`），更新（`updateNetworkingResource`），删除（`deleteNetworkingResource`）。
 * **配置：** 可通过命令行标志配置（传输方式、端口、kubeconfig、日志级别/格式）。
