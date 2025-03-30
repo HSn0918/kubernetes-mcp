@@ -1,53 +1,122 @@
 # .github/workflows/ci.yaml
-name: Go CI
+# 工作流名称
+name: Go CI and Docker Build (Go CI 与 Docker 构建)
 
-# Controls when the workflow will run
+# 控制工作流触发的时机
 on:
   push:
-    branches: [ main ] # Or your default branch name (e.g., master)
+    # 推送到 main 分支时触发 (或其他默认分支)
+    branches: [ main ]
+    # 推送 v*.*.* 格式的 Git 标签时触发 (例如 v1.0.0)
+    tags:
+      - 'v*.*.*'
   pull_request:
-    branches: [ main ] # Or your default branch name
+    # 对 main 分支提出 Pull Request 时触发
+    branches: [ main ]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# 工作流由一个或多个按顺序或并行运行的 job 组成
 jobs:
-  # This job runs checks like build, lint, test
-  build-test:
-    # The type of runner that the job will run on
+  # 这个 job 执行 Go 的检查、测试，并构建/推送 Docker 镜像
+  build-test-docker: # Job 名称
+    # 指定 job 运行的虚拟环境类型
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    # Steps 代表 job 中将按顺序执行的一系列任务
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - name: Checkout code
-        uses: actions/checkout@v4 # Use latest major version
+      # 步骤 1: 签出代码
+      # 将你的代码仓库签出到 $GITHUB_WORKSPACE，以便 job 可以访问
+      - name: Checkout code (签出代码)
+        uses: actions/checkout@v4
 
-      # Sets up the specified Go version environment
-      - name: Set up Go
-        uses: actions/setup-go@v5 # Use latest major version
+      # 步驟 2: 设置 Go 环境
+      - name: Set up Go (设置 Go 环境)
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24' # Use the specific Go version you requested
-          cache: true # Enable caching for dependencies
+          go-version: '1.24' # 指定使用的 Go 版本
+          cache: true # 启用 Go 模块依赖缓存
 
-      # Optional: Display Go version
-      - name: Display Go version
+      # 步骤 3: (可选) 显示 Go 版本
+      - name: Display Go version (显示 Go 版本)
         run: go version
 
-      # Install linters and tools
-      # golangci-lint is a popular linter aggregator
-      # govulncheck scans for known vulnerabilities
-      - name: Install tools
+      # 步骤 4: 安装 Go 工具
+      # 安装 govulncheck 用于扫描已知的安全性漏洞
+      - name: Install tools (安装工具)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      # Run vulnerability check
-      - name: Run govulncheck
+      # 步骤 5: 执行安全性漏洞扫描
+      - name: Run govulncheck (执行漏洞扫描)
         run: govulncheck ./...
 
-      # Run tests with race detector enabled and verbose output
-      - name: Run tests
+      # 步骤 6: 执行 Go 单元测试
+      # -v: 显示详细输出; -race: 启用竞争条件检测
+      - name: Run tests (执行测试)
         run: go test -v -race ./...
 
-      # Build the application to ensure it compiles
-      # Targeting the main package specifically
-      - name: Build application
+      # 步骤 7: 构建 Go 应用程序
+      # 确保应用程序可以成功编译
+      - name: Build application (构建应用程序)
         run: go build -v ./cmd/kubernetes-mcp/...
+
+      # --- Docker 构建步骤 ---
+
+      # 步骤 8: 设置 QEMU
+      # 为了在 x86 runner 上模拟其他 CPU 架构 (如 ARM64)
+      - name: Set up QEMU (设置 QEMU 模拟)
+        uses: docker/setup-qemu-action@v3
+
+      # 步骤 9: 设置 Docker Buildx
+      # 初始化 Docker Buildx，用于多架构镜像构建
+      - name: Set up Docker Buildx (设置 Docker Buildx)
+        uses: docker/setup-buildx-action@v3
+
+      # 步骤 10: 登录 Docker Hub (或其他容器仓库)
+      # 只有在推送到 main 分支或推送 tag 时才执行此步骤
+      - name: Log in to Docker Hub (登录 Docker Hub)
+        # 条件：仅在 push 事件时执行 (避免 PR 时登录)
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # 从 GitHub Secrets 读取 Docker Hub 用户名
+          password: ${{ secrets.DOCKERHUB_TOKEN }}  # 从 GitHub Secrets 读取 Docker Hub Access Token
+
+      # 步骤 11: 提取 Docker 元数据 (标签和标签)
+      # 自动根据 Git 事件 (分支、标签、SHA) 生成镜像的 tags 和 labels
+      - name: Extract Docker metadata (提取 Docker 元数据)
+        id: meta # 给此步骤设置 ID，方便后续引用其输出
+        uses: docker/metadata-action@v5
+        with:
+          images: hsn0918/kubernetes-mcp # 替换成你的镜像名称
+          tags: |
+            # 语义化版本标签 (例如 v1.2.3)
+            type=semver,pattern={{version}}
+            # 分支名称标签 (如果不是 main 分支)
+            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
+            # 短格式的 Git commit SHA 标签
+            type=sha,prefix=,suffix=,format=short
+            # 'latest' 标签 (仅限于推送到 main 分支时)
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # 步骤 12: 使用 buildx 构建并推送 Docker 镜像
+      - name: Build and push Docker image (构建并推送 Docker 镜像)
+        id: build-and-push # 给此步骤设置 ID
+        uses: docker/build-push-action@v6
+        with:
+          context: . # 指定 Dockerfile 的上下文路径 (当前目录)
+          platforms: linux/amd64,linux/arm64 # 指定目标平台 (双架构)
+          # 条件：只有在 push 事件时才执行推送 (`--push`)
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ steps.meta.outputs.tags }} # 使用 metadata action 生成的标签
+          labels: ${{ steps.meta.outputs.labels }} # 使用 metadata action 生成的标签
+          # 从 GitHub Actions Cache 读取 Docker 层缓存
+          cache-from: type=gha
+          # 将 Docker 层缓存写入 GitHub Actions Cache (模式: max 表示尽可能多地缓存)
+          cache-to: type=gha,mode=max
+          # 向 Dockerfile 传递构建参数
+          build-args: |
+            COMMIT=${{ github.sha }} # 将 GitHub commit SHA 作为 COMMIT 参数传递
+
+    # (可选) 输出构建好的镜像摘要 (digest)
+    outputs:
+      image-digest: ${{ steps.build-and-push.outputs.digest }}
