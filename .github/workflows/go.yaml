@@ -5,9 +5,7 @@ name: Go CI and Docker Build (Go CI 与 Docker 构建)
 # 控制工作流触发的时机
 on:
   push:
-    # 推送到 main 分支时触发 (或其他默认分支)
-    branches: [ main ]
-    # 推送 v*.*.* 格式的 Git 标签时触发 (例如 v1.0.0)
+    # 只有推送 v*.*.* 格式的 Git 标签时触发 (例如 v1.0.0)
     tags:
       - 'v*.*.*'
   pull_request:
@@ -59,23 +57,34 @@ jobs:
       - name: Build application (构建应用程序)
         run: go build -v ./cmd/kubernetes-mcp/...
 
-      # --- Docker 构建步骤 ---
+      # --- Docker 构建步骤 (仅在推送 tag 时执行) ---
+
+      # 检查是否是 tag 推送事件
+      - name: Check if tag push (检查是否是标签推送)
+        id: check-tag
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
 
       # 步骤 8: 设置 QEMU
       # 为了在 x86 runner 上模拟其他 CPU 架构 (如 ARM64)
       - name: Set up QEMU (设置 QEMU 模拟)
+        if: steps.check-tag.outputs.is_tag == 'true'
         uses: docker/setup-qemu-action@v3
 
       # 步骤 9: 设置 Docker Buildx
       # 初始化 Docker Buildx，用于多架构镜像构建
       - name: Set up Docker Buildx (设置 Docker Buildx)
+        if: steps.check-tag.outputs.is_tag == 'true'
         uses: docker/setup-buildx-action@v3
 
       # 步骤 10: 登录 Docker Hub (或其他容器仓库)
-      # 只有在推送到 main 分支或推送 tag 时才执行此步骤
+      # 只有在推送 tag 时才执行此步骤
       - name: Log in to Docker Hub (登录 Docker Hub)
-        # 条件：仅在 push 事件时执行 (避免 PR 时登录)
-        if: github.event_name == 'push'
+        if: steps.check-tag.outputs.is_tag == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }} # 从 GitHub Secrets 读取 Docker Hub 用户名
@@ -84,6 +93,7 @@ jobs:
       # 步骤 11: 提取 Docker 元数据 (标签和标签)
       # 自动根据 Git 事件 (分支、标签、SHA) 生成镜像的 tags 和 labels
       - name: Extract Docker metadata (提取 Docker 元数据)
+        if: steps.check-tag.outputs.is_tag == 'true'
         id: meta # 给此步骤设置 ID，方便后续引用其输出
         uses: docker/metadata-action@v5
         with:
@@ -91,22 +101,20 @@ jobs:
           tags: |
             # 语义化版本标签 (例如 v1.2.3)
             type=semver,pattern={{version}}
-            # 分支名称标签 (如果不是 main 分支)
-            type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
             # 短格式的 Git commit SHA 标签
             type=sha,prefix=,suffix=,format=short
-            # 'latest' 标签 (仅限于推送到 main 分支时)
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # 对于 tag 推送，也添加 'latest' 标签
+            type=raw,value=latest
 
       # 步骤 12: 使用 buildx 构建并推送 Docker 镜像
       - name: Build and push Docker image (构建并推送 Docker 镜像)
+        if: steps.check-tag.outputs.is_tag == 'true'
         id: build-and-push # 给此步骤设置 ID
         uses: docker/build-push-action@v6
         with:
           context: . # 指定 Dockerfile 的上下文路径 (当前目录)
           platforms: linux/amd64,linux/arm64 # 指定目标平台 (双架构)
-          # 条件：只有在 push 事件时才执行推送 (`--push`)
-          push: ${{ github.event_name == 'push' }}
+          push: true # 标签推送时始终执行推送
           tags: ${{ steps.meta.outputs.tags }} # 使用 metadata action 生成的标签
           labels: ${{ steps.meta.outputs.labels }} # 使用 metadata action 生成的标签
           # 从 GitHub Actions Cache 读取 Docker 层缓存
