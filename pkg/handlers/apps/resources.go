@@ -20,7 +20,7 @@ import (
 
 // ResourceHandlerImpl Apps资源处理程序实现
 type ResourceHandlerImpl struct {
-	base.Handler
+	base.ResourceHandler
 }
 
 // 确保实现了接口
@@ -28,116 +28,29 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Apps资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
+	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
 	return &ResourceHandlerImpl{
-		Handler: base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup),
+		ResourceHandler: base.NewResourceHandler(baseHandler, "APPS"),
 	}
 }
 
 // Handle 实现接口方法
 func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 根据工具名称分派到具体的处理方法
-	switch request.Method {
-	case base.LIST_APPS_RESOURCES:
+	// 检查是否是LIST_APPS_RESOURCES方法，使用我们的特殊实现
+	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.ResourceHandler.GetResourcePrefix()) {
 		return h.ListResources(ctx, request)
-	case base.GET_APPS_RESOURCE:
-		return h.GetResource(ctx, request)
-	case base.CREATE_APPS_RESOURCE:
-		return h.CreateResource(ctx, request)
-	case base.UPDATE_APPS_RESOURCE:
-		return h.UpdateResource(ctx, request)
-	case base.DELETE_APPS_RESOURCE:
-		return h.DeleteResource(ctx, request)
-	default:
-		return nil, fmt.Errorf("unknown apps resource method: %s", request.Method)
 	}
+	// 其他方法使用父类的处理方法
+	return h.ResourceHandler.Handle(ctx, request)
 }
 
 // Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
-	h.Log.Info("Registering apps resource handlers",
-		"scope", h.Scope,
-		"apiGroup", h.Group,
-	)
-
-	// 注册列出资源工具
-	server.AddTool(mcp.NewTool(base.LIST_APPS_RESOURCES,
-		mcp.WithDescription("List Apps Kubernetes resources (Namespace-scoped)"),
-		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Deployment, StatefulSet, DaemonSet, etc.)"),
-			mcp.Required(),
-		),
-		mcp.WithString("apiVersion",
-			mcp.Description("API Version (apps/v1)"),
-			mcp.DefaultString("apps/v1"),
-		),
-		mcp.WithString("namespace",
-			mcp.Description("Kubernetes namespace"),
-			mcp.DefaultString("default"),
-		),
-	), h.ListResources)
-
-	// 注册获取资源工具
-	server.AddTool(mcp.NewTool(base.GET_APPS_RESOURCE,
-		mcp.WithDescription("Get a specific Apps resource (Namespace-scoped)"),
-		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Deployment, StatefulSet, DaemonSet, etc.)"),
-			mcp.Required(),
-		),
-		mcp.WithString("apiVersion",
-			mcp.Description("API Version (apps/v1)"),
-			mcp.DefaultString("apps/v1"),
-		),
-		mcp.WithString("name",
-			mcp.Description("Name of the resource"),
-			mcp.Required(),
-		),
-		mcp.WithString("namespace",
-			mcp.Description("Kubernetes namespace"),
-			mcp.DefaultString("default"),
-		),
-	), h.GetResource)
-
-	// 注册创建资源工具
-	server.AddTool(mcp.NewTool(base.CREATE_APPS_RESOURCE,
-		mcp.WithDescription("Create an Apps resource from YAML"),
-		mcp.WithString("yaml",
-			mcp.Description("YAML manifest of the Apps resource"),
-			mcp.Required(),
-		),
-	), h.CreateResource)
-
-	// 注册更新资源工具
-	server.AddTool(mcp.NewTool(base.UPDATE_APPS_RESOURCE,
-		mcp.WithDescription("Update an Apps resource from YAML"),
-		mcp.WithString("yaml",
-			mcp.Description("YAML manifest of the Apps resource"),
-			mcp.Required(),
-		),
-	), h.UpdateResource)
-
-	// 注册删除资源工具
-	server.AddTool(mcp.NewTool(base.DELETE_APPS_RESOURCE,
-		mcp.WithDescription("Delete an Apps resource (Namespace-scoped)"),
-		mcp.WithString("kind",
-			mcp.Description("Kind of resource (Deployment, StatefulSet, DaemonSet, etc.)"),
-			mcp.Required(),
-		),
-		mcp.WithString("apiVersion",
-			mcp.Description("API Version (apps/v1)"),
-			mcp.DefaultString("apps/v1"),
-		),
-		mcp.WithString("name",
-			mcp.Description("Name of the resource"),
-			mcp.Required(),
-		),
-		mcp.WithString("namespace",
-			mcp.Description("Kubernetes namespace"),
-			mcp.DefaultString("default"),
-		),
-	), h.DeleteResource)
+	// 使用父类的注册方法
+	h.ResourceHandler.Register(server)
 }
 
-// ListResources 实现接口方法
+// ListResources 重写父类的列表方法，添加Apps特有的信息展示
 func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,

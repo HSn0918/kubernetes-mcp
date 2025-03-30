@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"github.com/mark3labs/mcp-go/server"
+
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // HandlerProviderImpl 实现HandlerProvider接口

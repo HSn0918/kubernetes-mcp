@@ -23,12 +23,15 @@ type KubernetesClient interface {
 	client.Client // 嵌入 controller-runtime 的 Client 接口
 	// ClientSet 提供访问标准 client-go Clientset 的方法，用于 controller-runtime 不直接支持的操作 (如 GetLogs)
 	ClientSet() kubernetes.Interface
+	// GetCurrentNamespace 获取当前kubeconfig中配置的命名空间
+	GetCurrentNamespace() (string, error)
 }
 
 // k8sClientImpl 基于controller-runtime/client的Kubernetes客户端实现 (增加 clientset 字段)
 type k8sClientImpl struct {
-	client    client.Client        // controller-runtime 客户端
-	clientset kubernetes.Interface // 标准 client-go Clientset
+	client    client.Client          // controller-runtime 客户端
+	clientset kubernetes.Interface   // 标准 client-go Clientset
+	rawConfig clientcmd.ClientConfig // 保存原始kubeconfig，用于获取当前命名空间
 }
 
 // 确保k8sClientImpl实现了KubernetesClient接口
@@ -118,6 +121,18 @@ func (k *k8sClientImpl) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 	return k.client.IsObjectNamespaced(obj)
 }
 
+// GetCurrentNamespace 获取kubeconfig中配置的当前命名空间
+func (k *k8sClientImpl) GetCurrentNamespace() (string, error) {
+	// 如果没有rawConfig（例如，使用的是集群内配置），则返回空字符串
+	if k.rawConfig == nil {
+		return "", fmt.Errorf("no kubeconfig available")
+	}
+
+	// 从rawConfig获取命名空间
+	namespace, _, err := k.rawConfig.Namespace()
+	return namespace, err
+}
+
 // NewClient 创建新的Kubernetes客户端 (优化后)
 // 同时初始化 controller-runtime client 和 client-go clientset
 func NewClient(appCfg *config.Config) (KubernetesClient, error) {
@@ -152,6 +167,12 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 	// 从加载规则和空覆盖创建配置
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
 	restConfig, err = kubeConfig.ClientConfig()
+
+	// 保存kubeConfig，以便之后GetCurrentNamespace使用
+	var rawConfig clientcmd.ClientConfig
+	if err == nil {
+		rawConfig = kubeConfig
+	}
 
 	// 如果加载外部配置失败，尝试集群内配置
 	if err != nil {
@@ -197,6 +218,7 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 	impl := &k8sClientImpl{
 		client:    runtimeClient,
 		clientset: clientset,
+		rawConfig: rawConfig,
 	}
 
 	log.Info("Kubernetes client initialized successfully")
