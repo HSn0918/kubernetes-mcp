@@ -21,8 +21,8 @@ import (
 
 // ResourceHandlerImpl Apps资源处理程序实现
 type ResourceHandlerImpl struct {
-	handler         base.Handler
-	resourceHandler *base.ResourceHandler
+	handler     base.Handler
+	baseHandler interfaces.BaseResourceHandler
 }
 
 // 确保实现了接口
@@ -31,27 +31,27 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 // NewResourceHandler 创建新的Apps资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
 	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
-	resourceHandler := base.NewResourceHandler(baseHandler, "APPS")
+	baseResourceHandler := base.NewResourceHandler(baseHandler, "APPS")
 	return &ResourceHandlerImpl{
-		handler:         baseHandler,
-		resourceHandler: &resourceHandler,
+		handler:     baseHandler,
+		baseHandler: &baseResourceHandler,
 	}
 }
 
 // Handle 实现接口方法
 func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 检查是否是LIST_APPS_RESOURCES方法，使用我们的特殊实现
-	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.resourceHandler.GetResourcePrefix()) {
+	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.baseHandler.GetResourcePrefix()) {
 		return h.ListResources(ctx, request)
 	}
 	// 其他方法使用父类的处理方法
-	return h.resourceHandler.Handle(ctx, request)
+	return h.baseHandler.Handle(ctx, request)
 }
 
 // Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	// 使用父类的注册方法
-	h.resourceHandler.Register(server)
+	h.baseHandler.Register(server)
 }
 
 // GetScope 实现ToolHandler接口

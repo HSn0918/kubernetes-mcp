@@ -110,3 +110,10 @@ type HandlerFactory interface {
 	// CreateNamespaceHandler 创建命名空间处理程序
 	CreateNamespaceHandler() NamespaceHandler
 }
+
+// BaseResourceHandler 定义资源处理器的基础实现
+type BaseResourceHandler interface {
+	ResourceHandler
+	GetResourcePrefix() string
+	GetNamespaceWithDefault(incomingNamespace string) string
+}
