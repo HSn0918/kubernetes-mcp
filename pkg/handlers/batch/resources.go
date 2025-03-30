@@ -3,12 +3,20 @@ package batch
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 // ResourceHandlerImpl Batch资源处理程序实现
@@ -135,13 +143,53 @@ func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源列表逻辑
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+	apiVersion, _ := arguments["apiVersion"].(string)
+	namespace, _ := arguments["namespace"].(string)
+
+	h.Log.Info("Listing resources",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"namespace", namespace,
+	)
+	// 解析GroupVersionKind
+	gvk := utils.ParseGVK(apiVersion, kind)
+	// 创建列表对象
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    kind + "List",
+	})
+	// 列出资源
+	err := h.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
+	if err != nil {
+		h.Log.Error("Failed to list resources",
+			"kind", kind,
+			"namespace", namespace,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to list resources: %v", err)
+	}
+	// 构建响应
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Found %d %s resources in namespace %s:\n\n", len(list.Items), kind, namespace))
+
+	for _, item := range list.Items {
+		result.WriteString(fmt.Sprintf("Name: %s\n", item.GetName()))
+	}
+	h.Log.Info("Resources listed successfully",
+		"kind", kind,
+		"namespace", namespace,
+		"count", len(list.Items),
+	)
 	h.Log.Info("Listing Batch resources")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Batch resources listing not implemented yet",
+				Text: result.String(),
 			},
 		},
 	}, nil
@@ -152,13 +200,63 @@ func (h *ResourceHandlerImpl) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源获取逻辑
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+	apiVersion, _ := arguments["apiVersion"].(string)
+	name, _ := arguments["name"].(string)
+	namespace, _ := arguments["namespace"].(string)
+
+	h.Log.Info("Getting resource",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"name", name,
+		"namespace", namespace,
+	)
+
+	// 解析GroupVersionKind
+	gvk := utils.ParseGVK(apiVersion, kind)
+
+	// 创建对象
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	// 获取资源
+	err := h.Client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
+	if err != nil {
+		h.Log.Error("Failed to get resource",
+			"kind", kind,
+			"name", name,
+			"namespace", namespace,
+			"error", err,
+		)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("core resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+		}
+		return nil, fmt.Errorf("failed to get resource: %v", err)
+	}
+
+	// 转换为YAML
+	yamlData, err := yaml.Marshal(obj.Object)
+	if err != nil {
+		h.Log.Error("Failed to marshal resource to YAML",
+			"kind", kind,
+			"name", name,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to marshal to YAML: %v", err)
+	}
+
+	h.Log.Info("Resource retrieved successfully",
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+	)
 	h.Log.Info("Getting Batch resource")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Batch resource fetch not implemented yet",
+				Text: string(yamlData),
 			},
 		},
 	}, nil
@@ -169,13 +267,51 @@ func (h *ResourceHandlerImpl) CreateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源创建逻辑
-	h.Log.Info("Creating Batch resource")
+	arguments := request.Params.Arguments
+	yamlStr, _ := arguments["yaml"].(string)
+
+	h.Log.Info("Creating Batch from YAML")
+
+	// 解析YAML
+	obj := &unstructured.Unstructured{}
+	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
+	if err != nil {
+		h.Log.Error("Failed to parse YAML", "error", err)
+		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+	}
+	if obj.GetNamespace() == "" {
+		obj.SetNamespace("default")
+		h.Log.Debug("Empty namespace, using default namespace")
+	}
+	h.Log.Debug("Parsed resource from YAML",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
+
+	// 创建资源
+	err = h.Client.Create(ctx, obj)
+	if err != nil {
+		h.Log.Error("Failed to create resource",
+			"kind", obj.GetKind(),
+			"name", obj.GetName(),
+			"namespace", obj.GetNamespace(),
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to create resource: %v", err)
+	}
+
+	h.Log.Info("Resource created successfully",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Batch resource creation not implemented yet",
+				Text: fmt.Sprintf("Successfully created %s/%s in namespace %s",
+					obj.GetKind(), obj.GetName(), obj.GetNamespace()),
 			},
 		},
 	}, nil
@@ -186,13 +322,49 @@ func (h *ResourceHandlerImpl) UpdateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源更新逻辑
 	h.Log.Info("Updating Batch resource")
+	arguments := request.Params.Arguments
+	yamlStr, _ := arguments["yaml"].(string)
+
+	h.Log.Info("Updating resource from YAML")
+
+	// 解析YAML
+	obj := &unstructured.Unstructured{}
+	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
+	if err != nil {
+		h.Log.Error("Failed to parse YAML", "error", err)
+		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+	}
+
+	h.Log.Debug("Parsed resource from YAML",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
+
+	// 更新资源
+	err = h.Client.Update(ctx, obj)
+	if err != nil {
+		h.Log.Error("Failed to update resource",
+			"kind", obj.GetKind(),
+			"name", obj.GetName(),
+			"namespace", obj.GetNamespace(),
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to update resource: %v", err)
+	}
+
+	h.Log.Info("Resource updated successfully",
+		"kind", obj.GetKind(),
+		"name", obj.GetName(),
+		"namespace", obj.GetNamespace(),
+	)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Batch resource update not implemented yet",
+				Text: fmt.Sprintf("Successfully updated %s/%s in namespace %s",
+					obj.GetKind(), obj.GetName(), obj.GetNamespace()),
 			},
 		},
 	}, nil
@@ -203,13 +375,50 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	// TODO: 实现具体的资源删除逻辑
-	h.Log.Info("Deleting Batch resource")
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+	apiVersion, _ := arguments["apiVersion"].(string)
+	name, _ := arguments["name"].(string)
+	namespace, _ := arguments["namespace"].(string)
+
+	h.Log.Info("Deleting resource",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"name", name,
+		"namespace", namespace,
+	)
+
+	// 解析GroupVersionKind
+	gvk := utils.ParseGVK(apiVersion, kind)
+
+	// 创建对象
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	obj.SetName(name)
+	obj.SetNamespace(namespace)
+
+	// 删除资源
+	err := h.Client.Delete(ctx, obj)
+	if err != nil {
+		h.Log.Error("Failed to delete resource",
+			"kind", kind,
+			"name", name,
+			"namespace", namespace,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to delete resource: %v", err)
+	}
+
+	h.Log.Info("Resource deleted successfully",
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+	)
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Batch resource deletion not implemented yet",
+				Text: fmt.Sprintf("Successfully deleted %s/%s from namespace %s", kind, name, namespace),
 			},
 		},
 	}, nil
