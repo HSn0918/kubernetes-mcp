@@ -26,4 +26,4 @@ EXPOSE 8080
 
 ENTRYPOINT ["/app/kubernetes-mcp"]
 # 可以通过 `docker run <image> version` 或 `docker run <image> server --transport=sse` 来覆盖
-CMD ["server", "--transport=stdio"]
+CMD ["server", "--transport=sse","-port=8080"]
