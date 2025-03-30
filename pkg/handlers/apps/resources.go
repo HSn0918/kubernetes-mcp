@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
-	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,11 +12,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
 // ResourceHandlerImpl Apps资源处理程序实现
 type ResourceHandlerImpl struct {
-	base.ResourceHandler
+	handler         base.Handler
+	resourceHandler *base.ResourceHandler
 }
 
 // 确保实现了接口
@@ -29,25 +31,37 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 // NewResourceHandler 创建新的Apps资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
 	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
+	resourceHandler := base.NewResourceHandler(baseHandler, "APPS")
 	return &ResourceHandlerImpl{
-		ResourceHandler: base.NewResourceHandler(baseHandler, "APPS"),
+		handler:         baseHandler,
+		resourceHandler: &resourceHandler,
 	}
 }
 
 // Handle 实现接口方法
 func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 检查是否是LIST_APPS_RESOURCES方法，使用我们的特殊实现
-	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.ResourceHandler.GetResourcePrefix()) {
+	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.resourceHandler.GetResourcePrefix()) {
 		return h.ListResources(ctx, request)
 	}
 	// 其他方法使用父类的处理方法
-	return h.ResourceHandler.Handle(ctx, request)
+	return h.resourceHandler.Handle(ctx, request)
 }
 
 // Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	// 使用父类的注册方法
-	h.ResourceHandler.Register(server)
+	h.resourceHandler.Register(server)
+}
+
+// GetScope 实现ToolHandler接口
+func (h *ResourceHandlerImpl) GetScope() interfaces.ResourceScope {
+	return h.handler.GetScope()
+}
+
+// GetAPIGroup 实现ToolHandler接口
+func (h *ResourceHandlerImpl) GetAPIGroup() interfaces.APIGroup {
+	return h.handler.GetAPIGroup()
 }
 
 // ListResources 重写父类的列表方法，添加Apps特有的信息展示
@@ -60,7 +74,7 @@ func (h *ResourceHandlerImpl) ListResources(
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespace, _ := arguments["namespace"].(string)
 
-	h.Log.Info("Listing Apps resources",
+	h.handler.Log.Info("Listing Apps resources",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"namespace", namespace,
@@ -78,9 +92,9 @@ func (h *ResourceHandlerImpl) ListResources(
 	})
 
 	// 列出资源
-	err := h.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
+	err := h.handler.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
 	if err != nil {
-		h.Log.Error("Failed to list Apps resources",
+		h.handler.Log.Error("Failed to list Apps resources",
 			"kind", kind,
 			"namespace", namespace,
 			"error", err,
@@ -134,7 +148,7 @@ func (h *ResourceHandlerImpl) ListResources(
 		result.WriteString("\n")
 	}
 
-	h.Log.Info("Apps resources listed successfully",
+	h.handler.Log.Info("Apps resources listed successfully",
 		"kind", kind,
 		"namespace", namespace,
 		"count", len(list.Items),
@@ -155,13 +169,13 @@ func (h *ResourceHandlerImpl) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	h.Log.Info("Getting Apps resource")
+	h.handler.Log.Info("Getting Apps resource")
 	arguments := request.Params.Arguments
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)
 	namespace, _ := arguments["namespace"].(string)
-	h.Log.Info("Getting Apps resource",
+	h.handler.Log.Info("Getting Apps resource",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"name", name,
@@ -171,9 +185,9 @@ func (h *ResourceHandlerImpl) GetResource(
 	gvk := utils.ParseGVK(apiVersion, kind)
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-	err := h.Client.Get(ctx, clientpkg.ObjectKey{Namespace: namespace, Name: name}, obj)
+	err := h.handler.Client.Get(ctx, clientpkg.ObjectKey{Namespace: namespace, Name: name}, obj)
 	if err != nil {
-		h.Log.Error("Failed to get Apps resource",
+		h.handler.Log.Error("Failed to get Apps resource",
 			"kind", kind,
 			"name", name,
 			"namespace", namespace,
@@ -184,7 +198,7 @@ func (h *ResourceHandlerImpl) GetResource(
 		}
 		return nil, fmt.Errorf("failed to get Apps resource (Kind: %s, Name: %s): %v", kind, name, err)
 	}
-	h.Log.Info("Apps resource retrieved successfully",
+	h.handler.Log.Info("Apps resource retrieved successfully",
 		"kind", kind,
 		"name", name,
 		"namespace", namespace,
@@ -206,25 +220,25 @@ func (h *ResourceHandlerImpl) CreateResource(
 ) (*mcp.CallToolResult, error) {
 	arguments := request.Params.Arguments
 	yamlStr, _ := arguments["yaml"].(string)
-	h.Log.Info("Creating Apps resource")
+	h.handler.Log.Info("Creating Apps resource")
 	obj := &unstructured.Unstructured{}
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
-		h.Log.Error("Failed to parse YAML", "error", err)
+		h.handler.Log.Error("Failed to parse YAML", "error", err)
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
 	if obj.GetNamespace() == "" {
 		obj.SetNamespace("default")
-		h.Log.Debug("Empty namespace, using default namespace")
+		h.handler.Log.Debug("Empty namespace, using default namespace")
 	}
-	h.Log.Debug("Parsed resource from YAML",
+	h.handler.Log.Debug("Parsed resource from YAML",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
 	)
-	err = h.Client.Create(ctx, obj)
+	err = h.handler.Client.Create(ctx, obj)
 	if err != nil {
-		h.Log.Error("create apps failed")
+		h.handler.Log.Error("create apps failed")
 		return nil, fmt.Errorf("failed to create Apps resource: %v", err)
 	}
 	return &mcp.CallToolResult{
@@ -244,22 +258,22 @@ func (h *ResourceHandlerImpl) UpdateResource(
 ) (*mcp.CallToolResult, error) {
 	arguments := request.Params.Arguments
 	yamlStr, _ := arguments["yaml"].(string)
-	h.Log.Info("Updating resource from YAML")
+	h.handler.Log.Info("Updating resource from YAML")
 	obj := &unstructured.Unstructured{}
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
-		h.Log.Error("Failed to parse YAML", "error", err)
+		h.handler.Log.Error("Failed to parse YAML", "error", err)
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
-	h.Log.Debug("Parsed resource from YAML",
+	h.handler.Log.Debug("Parsed resource from YAML",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
 	)
-	err = h.Client.Update(ctx, obj)
+	err = h.handler.Client.Update(ctx, obj)
 
 	if err != nil {
-		h.Log.Error("Failed to update resource",
+		h.handler.Log.Error("Failed to update resource",
 			"kind", obj.GetKind(),
 			"name", obj.GetName(),
 			"namespace", obj.GetNamespace(),
@@ -267,7 +281,7 @@ func (h *ResourceHandlerImpl) UpdateResource(
 		)
 		return nil, fmt.Errorf("failed to update resource: %v", err)
 	}
-	h.Log.Info("Resource updated successfully",
+	h.handler.Log.Info("Resource updated successfully",
 		"kind", obj.GetKind(),
 		"name", obj.GetName(),
 		"namespace", obj.GetNamespace(),
@@ -295,7 +309,7 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	name, _ := arguments["name"].(string)
 	namespace, _ := arguments["namespace"].(string)
 
-	h.Log.Info("Deleting Apps resource",
+	h.handler.Log.Info("Deleting Apps resource",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"name", name,
@@ -306,9 +320,9 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 
-	err := h.Client.Delete(ctx, obj)
+	err := h.handler.Client.Delete(ctx, obj)
 	if err != nil {
-		h.Log.Error("Failed to delete resource",
+		h.handler.Log.Error("Failed to delete resource",
 			"kind", kind,
 			"name", name,
 			"namespace", namespace,
@@ -316,7 +330,7 @@ func (h *ResourceHandlerImpl) DeleteResource(
 		)
 		return nil, fmt.Errorf("failed to delete resource: %v", err)
 	}
-	h.Log.Info("Resource deleted successfully",
+	h.handler.Log.Info("Resource deleted successfully",
 		"kind", kind,
 		"name", name,
 		"namespace", namespace,

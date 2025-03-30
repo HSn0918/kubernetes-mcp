@@ -24,7 +24,8 @@ const (
 
 // ResourceHandlerImpl 核心资源处理程序实现
 type ResourceHandlerImpl struct {
-	base.ResourceHandler
+	handler         base.Handler
+	resourceHandler *base.ResourceHandler
 }
 
 // 确保实现了接口
@@ -33,8 +34,10 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 // NewResourceHandler 创建新的核心资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
 	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.CoreAPIGroup)
+	resourceHandler := base.NewResourceHandler(baseHandler, "CORE")
 	return &ResourceHandlerImpl{
-		ResourceHandler: base.NewResourceHandler(baseHandler, "CORE"),
+		handler:         baseHandler,
+		resourceHandler: &resourceHandler,
 	}
 }
 
@@ -46,14 +49,14 @@ func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRe
 		return h.GetPodLogs(ctx, request)
 	default:
 		// 其他方法使用父类的处理方法
-		return h.ResourceHandler.Handle(ctx, request)
+		return h.resourceHandler.Handle(ctx, request)
 	}
 }
 
 // Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	// 先注册基础资源处理工具
-	h.ResourceHandler.Register(server)
+	h.resourceHandler.Register(server)
 
 	// 额外注册Pod日志工具
 	server.AddTool(mcp.NewTool(GET_POD_LOGS,
@@ -84,6 +87,56 @@ func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	), h.GetPodLogs)
 }
 
+// GetScope 实现ToolHandler接口
+func (h *ResourceHandlerImpl) GetScope() interfaces.ResourceScope {
+	return h.handler.GetScope()
+}
+
+// GetAPIGroup 实现ToolHandler接口
+func (h *ResourceHandlerImpl) GetAPIGroup() interfaces.APIGroup {
+	return h.handler.GetAPIGroup()
+}
+
+// ListResources 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) ListResources(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.resourceHandler.ListResources(ctx, request)
+}
+
+// GetResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) GetResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.resourceHandler.GetResource(ctx, request)
+}
+
+// CreateResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) CreateResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.resourceHandler.CreateResource(ctx, request)
+}
+
+// UpdateResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) UpdateResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.resourceHandler.UpdateResource(ctx, request)
+}
+
+// DeleteResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DeleteResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.resourceHandler.DeleteResource(ctx, request)
+}
+
 const (
 	// 如果用户未指定 tailLines，并且日志行数超过此值，则默认显示最后这么多行
 	defaultDisplayTailLines = 500
@@ -101,7 +154,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	namespaceArg, _ := arguments["namespace"].(string)
 
 	// 获取命名空间，使用合适的默认值
-	namespace := h.ResourceHandler.GetNamespaceWithDefault(namespaceArg)
+	namespace := h.resourceHandler.GetNamespaceWithDefault(namespaceArg)
 
 	container, _ := arguments["container"].(string)
 	tailLinesVal, _ := arguments["tailLines"]
@@ -115,7 +168,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	previous, _ := arguments["previous"].(bool)
 	timestamps, _ := arguments["timestamps"].(bool)
 
-	reqLogger := h.Log.With("pod", name, "namespace", namespace, "container", container)
+	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
 	reqLogger.Info("Starting pod logs request", "options", map[string]interface{}{
 		"tailLines":  tailLines,
 		"previous":   previous,
@@ -134,7 +187,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	}
 
 	// --- 获取和读取日志流 ---
-	logRESTRequest := h.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
+	logRESTRequest := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
 	podLogsStream, err := logRESTRequest.Stream(ctx)
 	if err != nil {
 		reqLogger.Error("Failed to get pod logs stream", "error", err)
