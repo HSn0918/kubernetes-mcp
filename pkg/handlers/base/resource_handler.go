@@ -38,10 +38,7 @@ func NewResourceHandler(h Handler, resourcePrefix string) ResourceHandler {
 
 // NewResourceHandler 创建新的资源处理器（指针版本）
 func NewResourceHandlerPtr(h Handler, resourcePrefix string) *ResourceHandler {
-	return lo.ToPtr(ResourceHandler{
-		Handler:        h,
-		resourcePrefix: resourcePrefix,
-	})
+	return lo.ToPtr(NewResourceHandler(h, resourcePrefix))
 }
 
 // Register 注册通用资源处理工具
