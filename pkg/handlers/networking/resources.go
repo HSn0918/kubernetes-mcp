@@ -22,10 +22,10 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 // NewResourceHandler 创建新的Networking资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
 	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.NetworkingAPIGroup)
-	baseResourceHandler := base.NewResourceHandler(baseHandler, "NETWORKING")
+	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "NETWORKING")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,
-		baseHandler: &baseResourceHandler,
+		baseHandler: baseResourceHandler,
 	}
 }
 

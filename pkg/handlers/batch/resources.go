@@ -22,10 +22,10 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 // NewResourceHandler 创建新的Batch资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
 	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.BatchAPIGroup)
-	baseResourceHandler := base.NewResourceHandler(baseHandler, "BATCH")
+	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "BATCH")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,
-		baseHandler: &baseResourceHandler,
+		baseHandler: baseResourceHandler,
 	}
 }
 
