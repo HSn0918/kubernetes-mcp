@@ -130,7 +130,7 @@ The following MCP tools are registered based on Kubernetes API groups and action
 ✅ `updateResource`: Update Core v1 namespace-scoped resource from YAML  
 ✅ `deleteResource`: Delete Core v1 namespace-scoped resource  
 ✅ `listNamespaces`: List Core v1 Namespaces (cluster-scoped)
-
+✅ `getPodLogs`: Get logs from Pod containers in a specified namespace
 ### Apps API Group (apps/v1)
 ✅ `listAppsResources`: List Apps v1 namespace-scoped resources (Deployments, etc.)  
 ✅ `getAppsResource`: Get Apps v1 resource  
@@ -139,11 +139,11 @@ The following MCP tools are registered based on Kubernetes API groups and action
 ✅ `deleteAppsResource`: Delete Apps v1 resource
 
 ### Batch API Group (batch/v1)
-❌ `listBatchResources`: List Batch v1 resources  
-❌ `getBatchResource`: Get Batch v1 resource  
-❌ `createBatchResource`: Create Batch v1 resource  
-❌ `updateBatchResource`: Update Batch v1 resource  
-❌ `deleteBatchResource`: Delete Batch v1 resource
+✅ `listBatchResources`: List Batch v1 resources  
+✅ `getBatchResource`: Get Batch v1 resource  
+✅ `createBatchResource`: Create Batch v1 resource  
+✅ `updateBatchResource`: Update Batch v1 resource  
+✅ `deleteBatchResource`: Delete Batch v1 resource
 
 ### Networking API Group (networking.k8s.io/v1)
 ❌ `listNetworkingResources`: List Networking v1 resources  
