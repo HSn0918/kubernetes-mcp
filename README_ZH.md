@@ -130,7 +130,7 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 ✅ `updateResource`：从 YAML 更新核心 v1 命名空间作用域资源  
 ✅ `deleteResource`：删除核心 v1 命名空间作用域资源  
 ✅ `listNamespaces`：列出核心 v1 命名空间（集群作用域）
-
+✅ `getPodLogs`：获取指定命名空间中 Pod 容器的日志
 ### Apps API 组 (apps/v1)
 ✅ `listAppsResources`：列出 Apps v1 命名空间作用域资源（Deployment 等）  
 ✅ `getAppsResource`：获取 Apps v1 资源  
@@ -139,11 +139,11 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 ✅ `deleteAppsResource`：删除 Apps v1 资源
 
 ### Batch API 组 (batch/v1)
-❌ `listBatchResources`：列出 Batch v1 资源  
-❌ `getBatchResource`：获取 Batch v1 资源  
-❌ `createBatchResource`：创建 Batch v1 资源  
-❌ `updateBatchResource`：更新 Batch v1 资源  
-❌ `deleteBatchResource`：删除 Batch v1 资源
+✅ `listBatchResources`：列出 Batch v1 资源  
+✅ `getBatchResource`：获取 Batch v1 资源  
+✅ `createBatchResource`：创建 Batch v1 资源  
+✅ `updateBatchResource`：更新 Batch v1 资源  
+✅ `deleteBatchResource`：删除 Batch v1 资源
 
 ### Networking API 组 (networking.k8s.io/v1)
 ❌ `listNetworkingResources`：列出 Networking v1 资源  
