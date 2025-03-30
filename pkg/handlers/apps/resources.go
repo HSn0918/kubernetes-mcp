@@ -304,33 +304,35 @@ func (h *ResourceHandlerImpl) DeleteResource(
 ) (*mcp.CallToolResult, error) {
 	arguments := request.Params.Arguments
 	kind, _ := arguments["kind"].(string)
-
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)
 	namespace, _ := arguments["namespace"].(string)
-
 	h.handler.Log.Info("Deleting Apps resource",
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"name", name,
 		"namespace", namespace,
 	)
+	// 解析GroupVersionKind
 	gvk := utils.ParseGVK(apiVersion, kind)
-
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
-
+	obj.SetName(name)
+	obj.SetNamespace(namespace)
 	err := h.handler.Client.Delete(ctx, obj)
 	if err != nil {
-		h.handler.Log.Error("Failed to delete resource",
+		h.handler.Log.Error("Failed to delete Apps resource",
 			"kind", kind,
 			"name", name,
 			"namespace", namespace,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to delete resource: %v", err)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("apps resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+		}
+		return nil, fmt.Errorf("failed to delete Apps resource: %v", err)
 	}
-	h.handler.Log.Info("Resource deleted successfully",
+	h.handler.Log.Info("Apps resource deleted successfully",
 		"kind", kind,
 		"name", name,
 		"namespace", namespace,
@@ -339,8 +341,16 @@ func (h *ResourceHandlerImpl) DeleteResource(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: "Apps resource deletion not implemented yet",
+				Text: fmt.Sprintf("Apps resource '%s/%s' deleted successfully from namespace %s", kind, name, namespace),
 			},
 		},
 	}, nil
+}
+
+// DescribeResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.baseHandler.DescribeResource(ctx, request)
 }

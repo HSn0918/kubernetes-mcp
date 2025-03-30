@@ -137,6 +137,14 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	return h.baseHandler.DeleteResource(ctx, request)
 }
 
+// DescribeResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.baseHandler.DescribeResource(ctx, request)
+}
+
 const (
 	// 如果用户未指定 tailLines，并且日志行数超过此值，则默认显示最后这么多行
 	defaultDisplayTailLines = 500

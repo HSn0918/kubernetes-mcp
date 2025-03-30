@@ -90,3 +90,11 @@ func (h *ResourceHandlerImpl) DeleteResource(
 ) (*mcp.CallToolResult, error) {
 	return h.baseHandler.DeleteResource(ctx, request)
 }
+
+// DescribeResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.baseHandler.DescribeResource(ctx, request)
+}

@@ -88,6 +88,27 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 		),
 	), h.GetResource)
 
+	// 注册描述资源工具
+	server.AddTool(mcp.NewTool(fmt.Sprintf("DESCRIBE_%s_RESOURCE", prefix),
+		mcp.WithDescription(fmt.Sprintf("Describe a specific %s resource with detailed information (%s-scoped)", h.Group, h.Scope)),
+		mcp.WithString("kind",
+			mcp.Description("Kind of resource"),
+			mcp.Required(),
+		),
+		mcp.WithString("apiVersion",
+			mcp.Description("API Version"),
+			mcp.Required(),
+		),
+		mcp.WithString("name",
+			mcp.Description("Name of the resource"),
+			mcp.Required(),
+		),
+		mcp.WithString("namespace",
+			mcp.Description("Kubernetes namespace"),
+			mcp.DefaultString("default"),
+		),
+	), h.DescribeResource)
+
 	// 注册创建资源工具
 	server.AddTool(mcp.NewTool(fmt.Sprintf("CREATE_%s_RESOURCE", prefix),
 		mcp.WithDescription(fmt.Sprintf("Create a %s resource from YAML", h.Group)),
@@ -278,6 +299,117 @@ func (h *ResourceHandler) GetResource(
 			mcp.TextContent{
 				Type: "text",
 				Text: string(yamlData),
+			},
+		},
+	}, nil
+}
+
+// DescribeResource 实现通用的资源详细描述功能
+func (h *ResourceHandler) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	arguments := request.Params.Arguments
+	kind, _ := arguments["kind"].(string)
+	apiVersion, _ := arguments["apiVersion"].(string)
+	name, _ := arguments["name"].(string)
+	namespaceArg, _ := arguments["namespace"].(string)
+
+	// 获取命名空间，使用合适的默认值
+	namespace := h.GetNamespaceWithDefault(namespaceArg)
+
+	h.Log.Info("Describing resource",
+		"kind", kind,
+		"apiVersion", apiVersion,
+		"name", name,
+		"namespace", namespace,
+		"group", h.Group,
+	)
+
+	// 解析GroupVersionKind
+	gvk := utils.ParseGVK(apiVersion, kind)
+
+	// 创建对象
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+
+	// 获取资源
+	err := h.Client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
+	if err != nil {
+		h.Log.Error("Failed to get resource for description",
+			"kind", kind,
+			"name", name,
+			"namespace", namespace,
+			"error", err,
+		)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+		}
+		return nil, fmt.Errorf("failed to describe resource: %v", err)
+	}
+
+	// 构建详细描述信息
+	var result strings.Builder
+
+	// 添加基本信息
+	result.WriteString(fmt.Sprintf("Name:         %s\n", obj.GetName()))
+	result.WriteString(fmt.Sprintf("Namespace:    %s\n", obj.GetNamespace()))
+	result.WriteString(fmt.Sprintf("Kind:         %s\n", obj.GetKind()))
+	result.WriteString(fmt.Sprintf("API Version:  %s\n", obj.GetAPIVersion()))
+	result.WriteString(fmt.Sprintf("Created At:   %s\n", obj.GetCreationTimestamp().String()))
+
+	// 添加标签
+	labels := obj.GetLabels()
+	if len(labels) > 0 {
+		result.WriteString("Labels:\n")
+		for k, v := range labels {
+			result.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
+		}
+	}
+
+	// 添加注解
+	annotations := obj.GetAnnotations()
+	if len(annotations) > 0 {
+		result.WriteString("Annotations:\n")
+		for k, v := range annotations {
+			result.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
+		}
+	}
+
+	// 添加资源版本和UID
+	result.WriteString(fmt.Sprintf("Resource Version: %s\n", obj.GetResourceVersion()))
+	result.WriteString(fmt.Sprintf("UID:              %s\n", obj.GetUID()))
+
+	// 添加spec和status信息
+	unstructContent := obj.UnstructuredContent()
+
+	// 处理Spec部分
+	if spec, found, _ := unstructured.NestedMap(unstructContent, "spec"); found && spec != nil {
+		result.WriteString("\nSpec:\n")
+		for k, v := range spec {
+			result.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
+		}
+	}
+
+	// 处理Status部分
+	if status, found, _ := unstructured.NestedMap(unstructContent, "status"); found && status != nil {
+		result.WriteString("\nStatus:\n")
+		for k, v := range status {
+			result.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
+		}
+	}
+
+	h.Log.Info("Resource described successfully",
+		"kind", kind,
+		"name", name,
+		"namespace", namespace,
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: result.String(),
 			},
 		},
 	}, nil
@@ -501,6 +633,8 @@ func (h *ResourceHandler) Handle(ctx context.Context, request mcp.CallToolReques
 		return h.ListResources(ctx, request)
 	case fmt.Sprintf("GET_%s_RESOURCE", prefix):
 		return h.GetResource(ctx, request)
+	case fmt.Sprintf("DESCRIBE_%s_RESOURCE", prefix):
+		return h.DescribeResource(ctx, request)
 	case fmt.Sprintf("CREATE_%s_RESOURCE", prefix):
 		return h.CreateResource(ctx, request)
 	case fmt.Sprintf("UPDATE_%s_RESOURCE", prefix):

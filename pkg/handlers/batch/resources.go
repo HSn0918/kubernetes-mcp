@@ -3,11 +3,12 @@ package batch
 import (
 	"context"
 
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // ResourceHandlerImpl Batch资源处理程序实现
@@ -89,4 +90,12 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	return h.baseHandler.DeleteResource(ctx, request)
+}
+
+// DescribeResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.baseHandler.DescribeResource(ctx, request)
 }

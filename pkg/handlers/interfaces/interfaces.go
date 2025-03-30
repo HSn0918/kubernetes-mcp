@@ -66,6 +66,9 @@ type ResourceHandler interface {
 	// GetResource 获取资源
 	GetResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 
+	// DescribeResource 详细描述资源
+	DescribeResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
+
 	// CreateResource 创建资源
 	CreateResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error)
 
