@@ -146,8 +146,8 @@ The following MCP tools are registered based on Kubernetes API groups and action
 ✅ `deleteBatchResource`: Delete Batch v1 resource
 
 ### Networking API Group (networking.k8s.io/v1)
-❌ `listNetworkingResources`: List Networking v1 resources  
-❌ `getNetworkingResource`: Get Networking v1 resource  
-❌ `createNetworkingResource`: Create Networking v1 resource  
-❌ `updateNetworkingResource`: Update Networking v1 resource  
-❌ `deleteNetworkingResource`: Delete Networking v1 resource
+✅ `listNetworkingResources`: List Networking v1 resources  
+✅ `getNetworkingResource`: Get Networking v1 resource  
+✅ `createNetworkingResource`: Create Networking v1 resource  
+✅ `updateNetworkingResource`: Update Networking v1 resource  
+✅ `deleteNetworkingResource`: Delete Networking v1 resource

@@ -146,8 +146,8 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 ✅ `deleteBatchResource`：删除 Batch v1 资源
 
 ### Networking API 组 (networking.k8s.io/v1)
-❌ `listNetworkingResources`：列出 Networking v1 资源  
-❌ `getNetworkingResource`：获取 Networking v1 资源  
-❌ `createNetworkingResource`：创建 Networking v1 资源  
-❌ `updateNetworkingResource`：更新 Networking v1 资源  
-❌ `deleteNetworkingResource`：删除 Networking v1 资源
+✅ `listNetworkingResources`：列出 Networking v1 资源  
+✅ `getNetworkingResource`：获取 Networking v1 资源  
+✅ `createNetworkingResource`：创建 Networking v1 资源  
+✅ `updateNetworkingResource`：更新 Networking v1 资源  
+✅ `deleteNetworkingResource`：删除 Networking v1 资源
