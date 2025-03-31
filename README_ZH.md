@@ -1,4 +1,8 @@
-# 🚀 Kubernetes-MCP
+# Kubernetes MCP
+
+<div align="center">
+  <img src="logo.png" alt="Kubernetes MCP Logo" width="200">
+</div>
 
 [English](README.md) | 中文
 
