@@ -37,7 +37,7 @@ func NewResourceHandler(h Handler, resourcePrefix string) ResourceHandler {
 	}
 }
 
-// NewResourceHandler 创建新的资源处理器（指针版本）
+// NewResourceHandlerPtr NewResourceHandler 创建新的资源处理器（指针版本）
 func NewResourceHandlerPtr(h Handler, resourcePrefix string) *ResourceHandler {
 	return lo.ToPtr(NewResourceHandler(h, resourcePrefix))
 }

@@ -132,6 +132,19 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 
 ## 🧩 主要功能和工具使用
 
+### 通用工具
+
+以下通用工具提供了额外的集群管理和故障排查功能：
+
+- **GET_CLUSTER_INFO**：获取 Kubernetes 集群信息
+- **GET_API_RESOURCES**：列出集群中可用的 API 资源
+- **SEARCH_RESOURCES**：跨命名空间和资源类型搜索资源
+- **EXPLAIN_RESOURCE**：获取有关资源结构和字段的详细信息
+- **APPLY_MANIFEST**：将 YAML 清单应用到集群
+- **VALIDATE_MANIFEST**：验证 YAML 清单而不应用它们
+- **DIFF_MANIFEST**：比较 YAML 清单与集群中现有资源
+- **GET_EVENTS**：获取与特定资源相关的事件
+
 ### 使用标签选择器列出资源
 
 所有的列表操作现在都支持使用标签选择器进行资源过滤：

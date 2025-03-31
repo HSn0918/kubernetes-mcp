@@ -72,6 +72,9 @@ func NewHandlerProvider() interfaces.HandlerProvider {
 
 		// autoscaling API组 (autoscaling/v1)
 		factory.CreateAutoscalingHandler(),
+
+		// 通用工具处理程序
+		factory.CreateUtilityHandler(),
 	}
 
 	return &HandlerProviderImpl{

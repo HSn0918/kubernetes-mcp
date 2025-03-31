@@ -130,6 +130,9 @@ type HandlerFactory interface {
 
 	// CreateNodeHandler 创建节点处理程序
 	CreateNodeHandler() ToolHandler
+
+	// CreateUtilityHandler 创建通用工具处理程序
+	CreateUtilityHandler() ToolHandler
 }
 
 // BaseResourceHandler 定义资源处理器的基础实现

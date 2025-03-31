@@ -132,6 +132,19 @@ Displays version information set at build time.
 
 ## 🧩 Key Features and Tool Usage
 
+### Utility Tools
+
+The following utility tools provide additional functionality for cluster management and troubleshooting:
+
+- **GET_CLUSTER_INFO**: Get information about the Kubernetes cluster
+- **GET_API_RESOURCES**: List available API resources in the cluster
+- **SEARCH_RESOURCES**: Search for resources across namespaces and resource types
+- **EXPLAIN_RESOURCE**: Get detailed information about resource structure and fields
+- **APPLY_MANIFEST**: Apply YAML manifests to the cluster
+- **VALIDATE_MANIFEST**: Validate YAML manifests without applying them
+- **DIFF_MANIFEST**: Compare a YAML manifest with existing resources in the cluster
+- **GET_EVENTS**: Get events related to a specific resource
+
 ### Resource Listing with Label Selectors
 
 All list operations now support filtering resources using label selectors:
