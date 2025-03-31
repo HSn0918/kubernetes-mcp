@@ -9,8 +9,6 @@ English | [中文](README_ZH.md)
 🔹 **MCP Server**: Implements the `mcp-go` library to provide MCP functionality
 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
-🔹 **Data Model**: Uses dedicated `models` package for standardized data structures
-🔹 **Response Format**: All tools provide human-readable text and structured JSON output
 
 ## 🛠️ Resource Management Tools
 
