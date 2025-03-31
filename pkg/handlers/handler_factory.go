@@ -78,3 +78,8 @@ func (f *HandlerFactoryImpl) CreateAutoscalingHandler() interfaces.ResourceHandl
 func (f *HandlerFactoryImpl) CreateNamespaceHandler() interfaces.NamespaceHandler {
 	return corev1.NewNamespaceHandler(f.client)
 }
+
+// CreateNodeHandler 创建节点处理程序
+func (f *HandlerFactoryImpl) CreateNodeHandler() interfaces.ToolHandler {
+	return corev1.NewNodeHandler(f.client)
+}

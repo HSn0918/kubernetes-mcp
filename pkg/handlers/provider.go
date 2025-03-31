@@ -44,6 +44,7 @@ func NewHandlerProvider() interfaces.HandlerProvider {
 	handlers := []interfaces.ToolHandler{
 		// 集群级别资源
 		factory.CreateNamespaceHandler(), // 集群作用域, v1 (core)
+		factory.CreateNodeHandler(),      // 集群作用域, v1 (core)
 
 		// 核心API组 (v1)
 		factory.CreateCoreHandler(),
