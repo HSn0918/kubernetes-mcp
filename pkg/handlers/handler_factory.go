@@ -89,3 +89,8 @@ func (f *HandlerFactoryImpl) CreateNodeHandler() interfaces.ToolHandler {
 func (f *HandlerFactoryImpl) CreateUtilityHandler() interfaces.ToolHandler {
 	return base.NewUtilityHandler(f.client)
 }
+
+// CreatePromptHandler 创建提示词处理程序
+func (f *HandlerFactoryImpl) CreatePromptHandler() interfaces.ToolHandler {
+	return base.NewPromptHandler(f.client)
+}

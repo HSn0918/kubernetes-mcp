@@ -133,6 +133,9 @@ type HandlerFactory interface {
 
 	// CreateUtilityHandler 创建通用工具处理程序
 	CreateUtilityHandler() ToolHandler
+
+	// CreatePromptHandler 创建提示词处理程序
+	CreatePromptHandler() ToolHandler
 }
 
 // BaseResourceHandler 定义资源处理器的基础实现

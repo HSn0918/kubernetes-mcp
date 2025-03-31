@@ -50,7 +50,6 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 		"apiGroup", h.Group,
 		"prefix", prefix,
 	)
-
 	// 注册列出资源工具
 	server.AddTool(mcp.NewTool(fmt.Sprintf("LIST_%s_RESOURCES", prefix),
 		mcp.WithDescription(fmt.Sprintf("List %s Kubernetes resources (%s-scoped)", h.Group, h.Scope)),

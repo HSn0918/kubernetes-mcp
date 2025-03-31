@@ -75,6 +75,9 @@ func NewHandlerProvider() interfaces.HandlerProvider {
 
 		// 通用工具处理程序
 		factory.CreateUtilityHandler(),
+
+		// 提示词处理程序
+		factory.CreatePromptHandler(),
 	}
 
 	return &HandlerProviderImpl{
