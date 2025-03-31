@@ -40,18 +40,37 @@ func NewHandlerProvider() interfaces.HandlerProvider {
 	// 使用工厂创建所有处理程序
 	factory := NewHandlerFactory(k8sClient)
 
-	// 按照API组和作用域组织处理程序
+	// 按照API组和Version组织处理程序
 	handlers := []interfaces.ToolHandler{
 		// 集群级别资源
-		factory.CreateNamespaceHandler(), // 集群作用域, 核心API组
+		factory.CreateNamespaceHandler(), // 集群作用域, v1 (core)
 
-		// 命名空间级别资源
-		factory.CreateCoreHandler(),       // 核心API组
-		factory.CreateAppsHandler(),       // 应用API组
-		factory.CreateBatchHandler(),      // 批处理API组
-		factory.CreateNetworkingHandler(), // 网络API组
+		// 核心API组 (v1)
+		factory.CreateCoreHandler(),
 
-		// 可以根据需要添加更多API组
+		// apps API组 (apps/v1)
+		factory.CreateAppsHandler(),
+
+		// batch API组 (batch/v1)
+		factory.CreateBatchHandler(),
+
+		// networking API组 (networking.k8s.io/v1)
+		factory.CreateNetworkingHandler(),
+
+		// storage API组 (storage.k8s.io/v1)
+		factory.CreateStorageHandler(),
+
+		// rbac API组 (rbac.authorization.k8s.io/v1)
+		factory.CreateRbacHandler(),
+
+		// policy API组 (policy/v1beta1)
+		factory.CreatePolicyHandler(),
+
+		// apiextensions API组 (apiextensions.k8s.io/v1)
+		factory.CreateApiExtensionsHandler(),
+
+		// autoscaling API组 (autoscaling/v1)
+		factory.CreateAutoscalingHandler(),
 	}
 
 	return &HandlerProviderImpl{

@@ -1,16 +1,22 @@
-package core
+package v1
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+)
+
+// 定义常量
+const (
+	LIST_NAMESPACES = "kubernetes.listNamespaces"
 )
 
 // NamespaceHandlerImpl 命名空间处理程序实现
@@ -32,7 +38,7 @@ func NewNamespaceHandler(client client.KubernetesClient) interfaces.NamespaceHan
 func (h *NamespaceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	// 根据工具名称分派到具体的处理方法
 	switch request.Method {
-	case base.LIST_NAMESPACES:
+	case LIST_NAMESPACES:
 		return h.ListNamespaces(ctx, request)
 	default:
 		return nil, fmt.Errorf("unknown namespace method: %s", request.Method)
@@ -47,7 +53,7 @@ func (h *NamespaceHandlerImpl) Register(server *server.MCPServer) {
 	)
 
 	// 注册列出命名空间工具
-	server.AddTool(mcp.NewTool(base.LIST_NAMESPACES,
+	server.AddTool(mcp.NewTool(LIST_NAMESPACES,
 		mcp.WithDescription("List all namespaces (Cluster-scoped)"),
 	), h.ListNamespaces)
 }
@@ -87,4 +93,14 @@ func (h *NamespaceHandlerImpl) ListNamespaces(
 			},
 		},
 	}, nil
+}
+
+// GetScope 实现ToolHandler接口
+func (h *NamespaceHandlerImpl) GetScope() interfaces.ResourceScope {
+	return h.Scope
+}
+
+// GetAPIGroup 实现ToolHandler接口
+func (h *NamespaceHandlerImpl) GetAPIGroup() interfaces.APIGroup {
+	return h.Group
 }

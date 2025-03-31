@@ -1,16 +1,17 @@
-package networking
+package v1
 
 import (
 	"context"
 
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
-// ResourceHandlerImpl Networking资源处理程序实现
+// ResourceHandlerImpl Storage资源处理程序实现
 type ResourceHandlerImpl struct {
 	handler     base.Handler
 	baseHandler interfaces.BaseResourceHandler
@@ -19,10 +20,10 @@ type ResourceHandlerImpl struct {
 // 确保实现了接口
 var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
-// NewResourceHandler 创建新的Networking资源处理程序
+// NewResourceHandler 创建新的Storage资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.NetworkingAPIGroup)
-	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "NETWORKING")
+	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.StorageAPIGroup)
+	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "STORAGE")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,
 		baseHandler: baseResourceHandler,
@@ -67,6 +68,14 @@ func (h *ResourceHandlerImpl) GetResource(
 	return h.baseHandler.GetResource(ctx, request)
 }
 
+// DescribeResource 实现ResourceHandler接口
+func (h *ResourceHandlerImpl) DescribeResource(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	return h.baseHandler.DescribeResource(ctx, request)
+}
+
 // CreateResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) CreateResource(
 	ctx context.Context,
@@ -89,12 +98,4 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	return h.baseHandler.DeleteResource(ctx, request)
-}
-
-// DescribeResource 实现ResourceHandler接口
-func (h *ResourceHandlerImpl) DescribeResource(
-	ctx context.Context,
-	request mcp.CallToolRequest,
-) (*mcp.CallToolResult, error) {
-	return h.baseHandler.DescribeResource(ctx, request)
 }

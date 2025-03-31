@@ -110,6 +110,21 @@ type HandlerFactory interface {
 	// CreateNetworkingHandler 创建网络资源处理程序
 	CreateNetworkingHandler() ResourceHandler
 
+	// CreateStorageHandler 创建存储资源处理程序
+	CreateStorageHandler() ResourceHandler
+
+	// CreateRbacHandler 创建RBAC资源处理程序
+	CreateRbacHandler() ResourceHandler
+
+	// CreatePolicyHandler 创建策略资源处理程序
+	CreatePolicyHandler() ResourceHandler
+
+	// CreateApiExtensionsHandler 创建API扩展资源处理程序
+	CreateApiExtensionsHandler() ResourceHandler
+
+	// CreateAutoscalingHandler 创建自动伸缩资源处理程序
+	CreateAutoscalingHandler() ResourceHandler
+
 	// CreateNamespaceHandler 创建命名空间处理程序
 	CreateNamespaceHandler() NamespaceHandler
 }
