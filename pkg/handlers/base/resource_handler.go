@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,6 +65,9 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 		mcp.WithString("namespace",
 			mcp.Description("Kubernetes namespace"),
 			mcp.DefaultString("default"),
+		),
+		mcp.WithString("labelSelector",
+			mcp.Description("Label selector (e.g. 'key1=value1,key2=value2')"),
 		),
 	), h.ListResources)
 
@@ -176,6 +180,7 @@ func (h *ResourceHandler) ListResources(
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespaceArg, _ := arguments["namespace"].(string)
+	labelSelector, _ := arguments["labelSelector"].(string)
 
 	// 获取命名空间，使用合适的默认值
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
@@ -184,6 +189,7 @@ func (h *ResourceHandler) ListResources(
 		"kind", kind,
 		"apiVersion", apiVersion,
 		"namespace", namespace,
+		"labelSelector", labelSelector,
 		"group", h.Group,
 	)
 
@@ -198,12 +204,30 @@ func (h *ResourceHandler) ListResources(
 		Kind:    kind + "List",
 	})
 
+	// 创建列表选项
+	listOptions := &clientpkg.ListOptions{Namespace: namespace}
+	if labelSelector != "" {
+		// 使用 k8s.io/apimachinery/pkg/labels 包创建标签选择器
+		selector, err := labels.Parse(labelSelector)
+		if err != nil {
+			h.Log.Error("Failed to parse label selector",
+				"labelSelector", labelSelector,
+				"error", err,
+			)
+			return nil, fmt.Errorf("failed to parse label selector: %v", err)
+		}
+
+		// 为列表选项设置标签选择器
+		listOptions.LabelSelector = selector
+	}
+
 	// 列出资源
-	err := h.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
+	err := h.Client.List(ctx, list, listOptions)
 	if err != nil {
 		h.Log.Error("Failed to list resources",
 			"kind", kind,
 			"namespace", namespace,
+			"labelSelector", labelSelector,
 			"error", err,
 		)
 		return nil, fmt.Errorf("failed to list resources: %v", err)
@@ -211,7 +235,17 @@ func (h *ResourceHandler) ListResources(
 
 	// 构建响应
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Found %d %s resources in namespace %s:\n\n", len(list.Items), kind, namespace))
+	result.WriteString(fmt.Sprintf("Found %d %s resources", len(list.Items), kind))
+
+	if namespace != "" {
+		result.WriteString(fmt.Sprintf(" in namespace %s", namespace))
+	}
+
+	if labelSelector != "" {
+		result.WriteString(fmt.Sprintf(" with label selector '%s'", labelSelector))
+	}
+
+	result.WriteString(":\n\n")
 
 	for _, item := range list.Items {
 		result.WriteString(fmt.Sprintf("Name: %s\n", item.GetName()))
@@ -220,6 +254,7 @@ func (h *ResourceHandler) ListResources(
 	h.Log.Info("Resources listed successfully",
 		"kind", kind,
 		"namespace", namespace,
+		"labelSelector", labelSelector,
 		"count", len(list.Items),
 	)
 
