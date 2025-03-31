@@ -11,15 +11,26 @@ A server implementation of the Model Capable Protocol (MCP) designed for interac
 * **Multiple Transports:** Supports communication via standard I/O (`stdio`) or Server-Sent Events (`sse`).
 * **Resource Management Tools:** Exposes MCP tools for Kubernetes operations:
     * **Core API Group (v1):**
-        * Fully implemented: List namespace-scoped resources (`listResources`), Get resource YAML (`getResource`), Create from YAML (`createResource`), Update from YAML (`updateResource`), Delete resource (`deleteResource`), podlog(`getPodLogs`).
-        * Fully implemented: List cluster-scoped Namespaces (`listNamespaces`).
+        * Fully implemented: List namespace-scoped resources (`listResources`), Get resource YAML (`getResource`), Describe resource details (`describeResource`), Create from YAML (`createResource`), Update from YAML (`updateResource`), Delete resource (`deleteResource`), Get Pod Logs (`getPodLogs`).
+        * Fully implemented: List cluster-scoped Namespaces (`listNamespaces`), List Nodes (`listNodes`).
     * **Apps API Group (apps/v1):**
-        * Implemented: List namespace-scoped resources (`listAppsResources`).
-        * Fully implemented : Get (`getAppsResource`), Create (`createAppsResource`), Update (`updateAppsResource`), Delete (`deleteAppsResource`).
+        * Fully implemented: List (`listAppsResources`), Get (`getAppsResource`), Describe (`describeAppsResource`), Create (`createAppsResource`), Update (`updateAppsResource`), Delete (`deleteAppsResource`).
     * **Batch API Group (batch/v1):**
-        * Fully implemented: List (`listBatchResources`), Get (`getBatchResource`), Create (`createBatchResource`), Update (`updateBatchResource`), Delete (`deleteBatchResource`).
+        * Fully implemented: List (`listBatchResources`), Get (`getBatchResource`), Describe (`describeBatchResource`), Create (`createBatchResource`), Update (`updateBatchResource`), Delete (`deleteBatchResource`).
     * **Networking API Group (networking.k8s.io/v1):**
-        * Placeholders (Not Implemented): List (`listNetworkingResources`), Get (`getNetworkingResource`), Create (`createNetworkingResource`), Update (`updateNetworkingResource`), Delete (`deleteNetworkingResource`).
+        * Fully implemented: List (`listNetworkingResources`), Get (`getNetworkingResource`), Describe (`describeNetworkingResource`), Create (`createNetworkingResource`), Update (`updateNetworkingResource`), Delete (`deleteNetworkingResource`).
+    * **RBAC API Group (rbac.authorization.k8s.io/v1):**
+        * Fully implemented: List (`listRbacResources`), Get (`getRbacResource`), Describe (`describeRbacResource`), Create (`createRbacResource`), Update (`updateRbacResource`), Delete (`deleteRbacResource`).
+    * **Storage API Group (storage.k8s.io/v1):**
+        * Fully implemented: List (`listStorageResources`), Get (`getStorageResource`), Describe (`describeStorageResource`), Create (`createStorageResource`), Update (`updateStorageResource`), Delete (`deleteStorageResource`).
+    * **Policy API Group (policy/v1beta1):**
+        * Fully implemented: List (`listPolicyResources`), Get (`getPolicyResource`), Describe (`describePolicyResource`), Create (`createPolicyResource`), Update (`updatePolicyResource`), Delete (`deletePolicyResource`).
+    * **API Extensions API Group (apiextensions.k8s.io/v1):**
+        * Fully implemented: List (`listApiextensionsResources`), Get (`getApiextensionsResource`), Describe (`describeApiextensionsResource`), Create (`createApiextensionsResource`), Update (`updateApiextensionsResource`), Delete (`deleteApiextensionsResource`).
+    * **Autoscaling API Group (autoscaling/v1):**
+        * Fully implemented: List (`listAutoscalingResources`), Get (`getAutoscalingResource`), Describe (`describeAutoscalingResource`), Create (`createAutoscalingResource`), Update (`updateAutoscalingResource`), Delete (`deleteAutoscalingResource`).
+* **Advanced Filtering:**
+    * Label selector support (`labelSelector`) for all List operations to filter resources by labels.
 * **Configuration:** Configurable via command-line flags (transport, port, kubeconfig, logging level/format).
 * **Logging:** Uses `zap` for structured logging.
 * **CLI:** Built with `cobra` framework.
@@ -119,35 +130,54 @@ Displays version information set at build time.
 - `--log-level`: Logging verbosity. Options: debug, info (default), warn, error.
 - `--log-format`: Log output format. Options: console (default), json.
 
-## 🧩 Supported MCP Tools (Kubernetes Operations)
+## 🧩 Key Features and Tool Usage
 
-The following MCP tools are registered based on Kubernetes API groups and actions:
+### Resource Listing with Label Selectors
 
-### Core API Group (v1)
-✅ `listResources`: List Core v1 namespace-scoped resources (Pods, Services, etc.)  
-✅ `getResource`: Get Core v1 namespace-scoped resource YAML  
-✅ `createResource`: Create Core v1 namespace-scoped resource from YAML  
-✅ `updateResource`: Update Core v1 namespace-scoped resource from YAML  
-✅ `deleteResource`: Delete Core v1 namespace-scoped resource  
-✅ `listNamespaces`: List Core v1 Namespaces (cluster-scoped)
-✅ `getPodLogs`: Get logs from Pod containers in a specified namespace
-### Apps API Group (apps/v1)
-✅ `listAppsResources`: List Apps v1 namespace-scoped resources (Deployments, etc.)  
-✅ `getAppsResource`: Get Apps v1 resource  
-✅ `createAppsResource`: Create Apps v1 resource  
-✅ `updateAppsResource`: Update Apps v1 resource  
-✅ `deleteAppsResource`: Delete Apps v1 resource
+All list operations now support filtering resources using label selectors:
 
-### Batch API Group (batch/v1)
-✅ `listBatchResources`: List Batch v1 resources  
-✅ `getBatchResource`: Get Batch v1 resource  
-✅ `createBatchResource`: Create Batch v1 resource  
-✅ `updateBatchResource`: Update Batch v1 resource  
-✅ `deleteBatchResource`: Delete Batch v1 resource
+```
+# Basic format
+LIST_<API_GROUP>_RESOURCES kind=<kind> apiVersion=<apiVersion> [namespace=<namespace>] [labelSelector=<selector>]
 
-### Networking API Group (networking.k8s.io/v1)
-✅ `listNetworkingResources`: List Networking v1 resources  
-✅ `getNetworkingResource`: Get Networking v1 resource  
-✅ `createNetworkingResource`: Create Networking v1 resource  
-✅ `updateNetworkingResource`: Update Networking v1 resource  
-✅ `deleteNetworkingResource`: Delete Networking v1 resource
+# Examples:
+# List all Deployments in the 'default' namespace with app=nginx label
+LIST_APPS_RESOURCES kind=Deployment apiVersion=apps/v1 namespace=default labelSelector=app=nginx
+
+# List all Pods in the 'kube-system' namespace with tier=control-plane label
+LIST_CORE_RESOURCES kind=Pod apiVersion=v1 namespace=kube-system labelSelector=tier=control-plane
+
+# More complex selectors
+LIST_CORE_RESOURCES kind=Pod apiVersion=v1 labelSelector=environment in (production,staging),tier=frontend
+```
+
+### Resource Management Operations
+
+Each API group supports standard resource operations:
+
+- **List Resources:** Get a list of resources with optional filtering by namespace and labels
+- **Get Resource:** Retrieve a specific resource in YAML format
+- **Describe Resource:** Get a detailed human-readable description of a resource
+- **Create Resource:** Create a new resource from YAML
+- **Update Resource:** Update an existing resource using YAML
+- **Delete Resource:** Remove a specific resource
+
+### Core API Group Special Operations
+
+- **Get Pod Logs:** Retrieve logs from a specific Pod container
+- **List Namespaces:** View all available namespaces in the cluster
+- **List Nodes:** View all nodes in the cluster with their status
+
+## 🌟 Supported API Groups
+
+All the following API groups are fully implemented with complete CRUD operations:
+
+- **Core API Group (v1)**: Pods, Services, ConfigMaps, Secrets, etc.
+- **Apps API Group (apps/v1)**: Deployments, ReplicaSets, StatefulSets, DaemonSets
+- **Batch API Group (batch/v1)**: Jobs, CronJobs
+- **Networking API Group (networking.k8s.io/v1)**: Ingress, NetworkPolicies
+- **RBAC API Group (rbac.authorization.k8s.io/v1)**: Roles, RoleBindings, ClusterRoles, ClusterRoleBindings
+- **Storage API Group (storage.k8s.io/v1)**: StorageClasses, VolumeAttachments
+- **Policy API Group (policy/v1beta1)**: PodSecurityPolicies, PodDisruptionBudgets
+- **API Extensions API Group (apiextensions.k8s.io/v1)**: CustomResourceDefinitions
+- **Autoscaling API Group (autoscaling/v1)**: HorizontalPodAutoscalers
