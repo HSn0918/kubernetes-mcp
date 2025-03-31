@@ -1,6 +1,6 @@
 # 🚀 Kubernetes-MCP
 
-English | [中文](README-zh.md)
+English | [中文](README_zh.md)
 
 ✨ A Model Capable Protocol (MCP) server implementation designed with Go for interacting with Kubernetes clusters. This server allows MCP-compatible clients to perform Kubernetes operations through defined tools.
 
