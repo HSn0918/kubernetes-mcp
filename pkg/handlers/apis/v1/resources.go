@@ -10,7 +10,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	corev1api "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	GET_POD_LOGS = "kubernetes.getPodLogs"
+	GET_POD_LOGS = "GET_POD_LOGS"
 )
 
 // ResourceHandlerImpl 核心资源处理程序实现
@@ -58,9 +58,32 @@ func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 	// 注册父类的工具
 	h.baseHandler.Register(server)
 
-	// 注册特定于Core的工具
+	// 额外注册Pod日志工具
 	server.AddTool(mcp.NewTool(GET_POD_LOGS,
-		mcp.WithDescription("获取Pod日志"),
+		mcp.WithDescription("Get logs from a Pod"),
+		mcp.WithString("name",
+			mcp.Description("Name of the Pod"),
+			mcp.Required(),
+		),
+		mcp.WithString("namespace",
+			mcp.Description("Kubernetes namespace"),
+			mcp.DefaultString("default"),
+		),
+		mcp.WithString("container",
+			mcp.Description("Container name (if Pod has multiple containers)"),
+		),
+		mcp.WithNumber("tailLines",
+			mcp.Description("Number of lines to show from the end of the logs (default 500)"),
+			mcp.DefaultNumber(500),
+		),
+		mcp.WithBoolean("previous",
+			mcp.Description("Whether to get logs from previous terminated container instance"),
+			mcp.DefaultBool(false),
+		),
+		mcp.WithBoolean("timestamps",
+			mcp.Description("Include timestamps on each line"),
+			mcp.DefaultBool(true),
+		),
 	), h.GetPodLogs)
 }
 
@@ -122,103 +145,165 @@ func (h *ResourceHandlerImpl) DeleteResource(
 	return h.baseHandler.DeleteResource(ctx, request)
 }
 
+const (
+	// 如果用户未指定 tailLines，并且日志行数超过此值，则默认显示最后这么多行
+	defaultDisplayTailLines = 500
+	MAX_LOG_BYTES_LIMIT     = 1024 * 1024 * 2
+)
+
 // GetPodLogs 获取Pod日志
-func (h *ResourceHandlerImpl) GetPodLogs(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (h *ResourceHandlerImpl) GetPodLogs(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	// --- 参数提取 ---
 	arguments := request.Params.Arguments
-	podName, _ := arguments["podName"].(string)
-	namespace, _ := arguments["namespace"].(string)
-	containerName, _ := arguments["containerName"].(string)
-	tailLines, _ := arguments["tailLines"].(float64)
+	name, _ := arguments["name"].(string)
+	namespaceArg, _ := arguments["namespace"].(string)
+
+	// 获取命名空间，使用合适的默认值
+	namespace := h.baseHandler.GetNamespaceWithDefault(namespaceArg)
+
+	container, _ := arguments["container"].(string)
+	tailLinesVal, _ := arguments["tailLines"]
+	// 更安全地处理可能的类型，例如 float64 (JSON 数字) -> int
+	var tailLines int
+	if tlf, ok := tailLinesVal.(float64); ok {
+		tailLines = int(tlf)
+	} else if tli, ok := tailLinesVal.(int); ok {
+		tailLines = tli
+	}
 	previous, _ := arguments["previous"].(bool)
+	timestamps, _ := arguments["timestamps"].(bool)
 
-	h.handler.Log.Info("Getting pod logs",
-		"pod", podName,
-		"namespace", namespace,
-		"container", containerName,
-		"tailLines", tailLines,
-		"previous", previous,
-	)
+	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
+	reqLogger.Info("Starting pod logs request", "options", map[string]interface{}{
+		"tailLines":  tailLines,
+		"previous":   previous,
+		"timestamps": timestamps,
+	})
 
-	// 设置日志选项
-	podLogOpts := &corev1api.PodLogOptions{
-		Container: containerName,
-		Previous:  previous,
+	// --- 设置日志选项 ---
+	podLogOptions := &corev1.PodLogOptions{
+		Container:  container,
+		Previous:   previous,
+		Timestamps: timestamps,
 	}
 	if tailLines > 0 {
-		lines := int64(tailLines)
-		podLogOpts.TailLines = &lines
+		tailLinesInt64 := int64(tailLines)
+		podLogOptions.TailLines = &tailLinesInt64
 	}
 
-	// 获取Pod日志
-	req := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
-	podLogs, err := req.Stream(ctx)
+	// --- 获取和读取日志流 ---
+	logRESTRequest := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
+	podLogsStream, err := logRESTRequest.Stream(ctx)
 	if err != nil {
-		h.handler.Log.Error("Failed to get pod logs",
-			"pod", podName,
-			"namespace", namespace,
-			"container", containerName,
-			"error", err,
-		)
+		reqLogger.Error("Failed to get pod logs stream", "error", err)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("pod or container not found (Pod: %s, Container: %s, Namespace: %s)",
-				podName, containerName, namespace)
+			return nil, fmt.Errorf("Pod '%s' not found in namespace '%s'", name, namespace)
 		}
-		return nil, fmt.Errorf("failed to get pod logs: %v", err)
+		return nil, fmt.Errorf("failed to stream pod logs for pod %s: %w", name, err)
 	}
-	defer podLogs.Close()
+	defer podLogsStream.Close()
 
 	// 读取日志内容
 	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
-		h.handler.Log.Error("Failed to read pod logs",
-			"pod", podName,
-			"namespace", namespace,
-			"container", containerName,
-			"error", err,
-		)
-		return nil, fmt.Errorf("failed to read pod logs: %v", err)
+	_, err = io.CopyN(buf, podLogsStream, MAX_LOG_BYTES_LIMIT)
+	if err != nil && err != io.EOF {
+		reqLogger.Error("Failed to read pod logs stream fully", "error", err)
 	}
 
-	// 处理日志内容
-	var lines []string
-	scanner := bufio.NewScanner(buf)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	logsContent := buf.String()
+	logLengthBytes := len(logsContent)
+	logLines := strings.Split(logsContent, "\n")
+	if len(logLines) > 0 && logLines[len(logLines)-1] == "" {
+		logLines = logLines[:len(logLines)-1]
 	}
-	if err := scanner.Err(); err != nil {
-		h.handler.Log.Error("Failed to scan pod logs",
-			"pod", podName,
-			"namespace", namespace,
-			"container", containerName,
-			"error", err,
-		)
-		return nil, fmt.Errorf("failed to scan pod logs: %v", err)
-	}
+	actualLineCount := len(logLines)
 
-	// 构建响应
-	var resultText string
-	if len(lines) == 0 {
-		resultText = fmt.Sprintf("No logs available for pod %s in namespace %s", podName, namespace)
-	} else {
-		containerStr := ""
-		if containerName != "" {
-			containerStr = fmt.Sprintf(", container %s", containerName)
+	// --- 处理日志截断显示 ---
+	displayLogs := logsContent
+	truncated := false
+	displayLineCount := actualLineCount
+	if tailLines <= 0 && actualLineCount > defaultDisplayTailLines {
+		startIndex := actualLineCount - defaultDisplayTailLines
+		displayLogs = strings.Join(logLines[startIndex:], "\n")
+		truncated = true
+		displayLineCount = defaultDisplayTailLines
+	} else if tailLines > 0 && actualLineCount > tailLines {
+		startIndex := actualLineCount - tailLines
+		if startIndex < 0 {
+			startIndex = 0
 		}
-		resultText = fmt.Sprintf("Logs for pod %s%s in namespace %s:\n\n%s",
-			podName,
-			containerStr,
-			namespace,
-			strings.Join(lines, "\n"),
-		)
+		displayLogs = strings.Join(logLines[startIndex:], "\n")
+		displayLineCount = tailLines
 	}
+
+	// --- 构建摘要信息 ---
+	summaryDetails := fmt.Sprintf("Pod: %s | Namespace: %s", name, namespace)
+	if container != "" {
+		summaryDetails += fmt.Sprintf(" | Container: %s", container)
+	}
+	summaryDetails += fmt.Sprintf(" | Options: previous=%t, timestamps=%t", previous, timestamps)
+	if tailLines > 0 {
+		summaryDetails += fmt.Sprintf(", tailLines=%d", tailLines)
+	} else {
+		summaryDetails += ", tailLines=All"
+	}
+	summaryDetails += fmt.Sprintf(" | Displaying %d lines", displayLineCount)
+	if truncated {
+		summaryDetails += fmt.Sprintf(" (truncated from %d lines, showing last %d)", actualLineCount, defaultDisplayTailLines)
+	}
+
+	// --- 格式化最终输出 ---
+	formattedOutput := formatPodLogsImproved(summaryDetails, displayLogs)
+
+	reqLogger.Info("Pod logs retrieved successfully", "bytes", logLengthBytes, "linesRetrieved", actualLineCount, "linesDisplayed", displayLineCount)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: resultText,
+				Text: formattedOutput,
 			},
 		},
 	}, nil
+}
+
+// formatPodLogsImproved 改进的日志格式化函数
+func formatPodLogsImproved(summaryDetails string, logs string) string {
+	var sb strings.Builder
+	separator := "----------------------------------------------------------------------"
+
+	// 1. 打印头部和摘要信息
+	sb.WriteString(separator)
+	sb.WriteString("\n")
+	sb.WriteString(" KUBERNETES POD LOGS\n")
+	sb.WriteString(separator)
+	sb.WriteString("\n")
+	sb.WriteString(summaryDetails)
+	sb.WriteString("\n")
+	sb.WriteString(separator)
+	sb.WriteString("\n\n")
+
+	// 2. 打印日志内容（带缩进）
+	if strings.TrimSpace(logs) == "" {
+		sb.WriteString("  --- No logs available with the specified options. ---\n")
+	} else {
+		scanner := bufio.NewScanner(strings.NewReader(logs))
+		for scanner.Scan() {
+			sb.WriteString("  ")
+			sb.WriteString(scanner.Text())
+			sb.WriteString("\n")
+		}
+	}
+
+	// 3. 打印尾部
+	sb.WriteString("\n")
+	sb.WriteString(separator)
+	sb.WriteString("\n--- End of Logs ---\n")
+	sb.WriteString(separator)
+	sb.WriteString("\n")
+
+	return sb.String()
 }

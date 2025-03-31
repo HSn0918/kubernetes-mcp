@@ -16,7 +16,7 @@ import (
 
 // 定义常量
 const (
-	LIST_NAMESPACES = "kubernetes.listNamespaces"
+	LIST_NAMESPACES = "LIST_NAMESPACES"
 )
 
 // NamespaceHandlerImpl 命名空间处理程序实现
