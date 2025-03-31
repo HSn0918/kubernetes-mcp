@@ -17,7 +17,7 @@ type Config struct {
 // NewDefaultConfig 创建默认配置
 func NewDefaultConfig() *Config {
 	return &Config{
-		Transport:  "stdio",
+		Transport:  "sse",
 		Port:       8080,
 		HealthPort: 8081,
 		LogLevel:   "info",
