@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -25,13 +27,19 @@ type KubernetesClient interface {
 	ClientSet() kubernetes.Interface
 	// GetCurrentNamespace 获取当前kubeconfig中配置的命名空间
 	GetCurrentNamespace() (string, error)
+	// GetDynamicClient 提供访问 client-go dynamic 客户端的方法，用于动态资源 (如 CustomResourceDefinition)
+	GetDynamicClient() dynamic.Interface
+	// GetDiscoveryClient 提供访问 client-go discovery 客户端的方法，用于发现 API 资源
+	GetDiscoveryClient() discovery.DiscoveryInterface
 }
 
 // k8sClientImpl 基于controller-runtime/client的Kubernetes客户端实现 (增加 clientset 字段)
 type k8sClientImpl struct {
-	client    client.Client          // controller-runtime 客户端
-	clientset kubernetes.Interface   // 标准 client-go Clientset
-	rawConfig clientcmd.ClientConfig // 保存原始kubeconfig，用于获取当前命名空间
+	client          client.Client                // controller-runtime 客户端
+	clientset       kubernetes.Interface         // 标准 client-go Clientset
+	dynamicClient   dynamic.Interface            // 用于动态资源的 client-go 客户端
+	discoveryClient discovery.DiscoveryInterface // 用于发现 API 资源的 client-go 客户端
+	rawConfig       clientcmd.ClientConfig       // 保存原始kubeconfig，用于获取当前命名空间
 }
 
 // 确保k8sClientImpl实现了KubernetesClient接口
@@ -163,7 +171,6 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 		}
 		// loadingRules 将自动处理环境变量和默认路径
 	}
-
 	// 从加载规则和空覆盖创建配置
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
 	restConfig, err = kubeConfig.ClientConfig()
@@ -193,7 +200,8 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 		return nil, fmt.Errorf("failed to add client-go scheme: %w", err)
 	}
 	// 添加自定义资源定义 (如果需要)
-
+	restConfig.QPS = 500
+	restConfig.Burst = 1000
 	// 3. 创建 controller-runtime Client
 	runtimeClient, err := client.New(restConfig, client.Options{
 		Scheme: scheme,
@@ -213,12 +221,23 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 		return nil, fmt.Errorf("could not create kubernetes clientset: %w", err)
 	}
 	log.Debug("Kubernetes clientset created")
+	// 5. 创建 discoveryClient 和 dynamicClient
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	dynamicClient, err := dynamic.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
 
-	// 5. 返回包含两个客户端的实现
+	// 6. 返回包含客户端的实现
 	impl := &k8sClientImpl{
-		client:    runtimeClient,
-		clientset: clientset,
-		rawConfig: rawConfig,
+		client:          runtimeClient,
+		clientset:       clientset,
+		rawConfig:       rawConfig,
+		discoveryClient: discoveryClient,
+		dynamicClient:   dynamicClient,
 	}
 
 	log.Info("Kubernetes client initialized successfully")
@@ -239,4 +258,11 @@ func GetClient() KubernetesClient {
 		panic("Default Kubernetes client accessed before initialization. Ensure InitializeDefaultClient() is called.")
 	}
 	return defaultClient
+}
+func (k *k8sClientImpl) GetDynamicClient() dynamic.Interface {
+	return k.dynamicClient
+}
+
+func (k *k8sClientImpl) GetDiscoveryClient() discovery.DiscoveryInterface {
+	return k.discoveryClient
 }
