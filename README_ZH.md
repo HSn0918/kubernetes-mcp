@@ -1,63 +1,68 @@
-# Kubernetes-MCP
+# 🚀 Kubernetes-MCP
 
 [English](README.md) | 中文
 
-一个使用 Go 语言设计的 Model Capable Protocol (MCP) 服务器实现，用于与 Kubernetes 集群交互。该服务器允许 MCP 兼容的客户端通过定义的工具执行 Kubernetes 操作。
+✨ 一个使用 Go 语言设计的 Model Capable Protocol (MCP) 服务器实现，用于与 Kubernetes 集群交互。支持 MCP 兼容的客户端通过定义的工具执行 Kubernetes 操作。
 
-## ✨ 功能特点
+## 📌 核心功能
 
-* **MCP 服务器：** 实现 `mcp-go` 库以提供 MCP 功能。
-* **Kubernetes 交互：** 使用 `controller-runtime` 客户端与 Kubernetes 集群交互。
-* **多种传输方式：** 支持通过标准 I/O（`stdio`）或服务器发送事件（`sse`）进行通信。
-* **资源管理工具：** 提供用于 Kubernetes 操作的 MCP 工具：
-    * **核心 API 组 (v1)：**
-        * 已完整实现：列出命名空间作用域资源（`listResources`），获取资源 YAML（`getResource`），资源详细描述（`describeResource`），从 YAML 创建（`createResource`），从 YAML 更新（`updateResource`），删除资源（`deleteResource`），获取 Pod 日志（`getPodLogs`）。
-        * 已完整实现：列出集群作用域命名空间（`listNamespaces`），列出节点（`listNodes`）。
-    * **Apps API 组 (apps/v1)：**
-        * 已完整实现：列出（`listAppsResources`），获取（`getAppsResource`），详细描述（`describeAppsResource`），创建（`createAppsResource`），更新（`updateAppsResource`），删除（`deleteAppsResource`）。
-    * **Batch API 组 (batch/v1)：**
-        * 已完整实现：列出（`listBatchResources`），获取（`getBatchResource`），详细描述（`describeBatchResource`），创建（`createBatchResource`），更新（`updateBatchResource`），删除（`deleteBatchResource`）。
-    * **Networking API 组 (networking.k8s.io/v1)：**
-        * 已完整实现：列出（`listNetworkingResources`），获取（`getNetworkingResource`），详细描述（`describeNetworkingResource`），创建（`createNetworkingResource`），更新（`updateNetworkingResource`），删除（`deleteNetworkingResource`）。
-    * **RBAC API 组 (rbac.authorization.k8s.io/v1)：**
-        * 已完整实现：列出（`listRbacResources`），获取（`getRbacResource`），详细描述（`describeRbacResource`），创建（`createRbacResource`），更新（`updateRbacResource`），删除（`deleteRbacResource`）。
-    * **Storage API 组 (storage.k8s.io/v1)：**
-        * 已完整实现：列出（`listStorageResources`），获取（`getStorageResource`），详细描述（`describeStorageResource`），创建（`createStorageResource`），更新（`updateStorageResource`），删除（`deleteStorageResource`）。
-    * **Policy API 组 (policy/v1beta1)：**
-        * 已完整实现：列出（`listPolicyResources`），获取（`getPolicyResource`），详细描述（`describePolicyResource`），创建（`createPolicyResource`），更新（`updatePolicyResource`），删除（`deletePolicyResource`）。
-    * **API Extensions API 组 (apiextensions.k8s.io/v1)：**
-        * 已完整实现：列出（`listApiextensionsResources`），获取（`getApiextensionsResource`），详细描述（`describeApiextensionsResource`），创建（`createApiextensionsResource`），更新（`updateApiextensionsResource`），删除（`deleteApiextensionsResource`）。
-    * **Autoscaling API 组 (autoscaling/v1)：**
-        * 已完整实现：列出（`listAutoscalingResources`），获取（`getAutoscalingResource`），详细描述（`describeAutoscalingResource`），创建（`createAutoscalingResource`），更新（`updateAutoscalingResource`），删除（`deleteAutoscalingResource`）。
-* **高级过滤功能：**
-    * 所有列表操作都支持标签选择器（`labelSelector`）以按标签过滤资源。
-* **配置：** 可通过命令行标志配置（传输方式、端口、kubeconfig、日志级别/格式）。
-* **日志记录：** 使用 `zap` 进行结构化日志记录。
-* **命令行界面：** 使用 `cobra` 框架构建。
+🔹 **MCP 服务器**：实现 `mcp-go` 库提供 MCP 功能
+🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
+🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
+🔹 **数据模型**：使用专用 `models` 包提供标准化数据结构
+🔹 **响应格式**：所有工具提供人类可读文本和结构化 JSON 输出
 
-## 📋 前提条件
+## 🛠️ 资源管理工具
 
-* **Go 1.24**
-* 访问 Kubernetes 集群（通过 `kubeconfig` 文件或集群内服务账户）。
+### 📊 已实现的 API 组
+
+🔸 **核心 API 组 (v1)**
+- 列出资源、获取资源、详细描述、创建、更新、删除等操作
+- 集群作用域：列出命名空间、列出节点
+- 获取 Pod 日志功能
+
+🔸 **应用 API 组 (apps/v1)**
+- Deployment、ReplicaSet、StatefulSet、DaemonSet 完整支持
+
+🔸 **批处理 API 组 (batch/v1)**
+- Job、CronJob 完整支持
+
+🔸 **网络 API 组 (networking.k8s.io/v1)**
+- Ingress、NetworkPolicy 完整支持
+
+🔸 **RBAC API 组 (rbac.authorization.k8s.io/v1)**
+- Role、RoleBinding、ClusterRole、ClusterRoleBinding 完整支持
+
+🔸 **存储 API 组 (storage.k8s.io/v1)**
+- StorageClass、VolumeAttachment 完整支持
+
+🔸 **策略 API 组 (policy/v1beta1)**
+- PodSecurityPolicy、PodDisruptionBudget 完整支持
+
+🔸 **API 扩展 API 组 (apiextensions.k8s.io/v1)**
+- CustomResourceDefinition 完整支持
+
+🔸 **自动扩缩容 API 组 (autoscaling/v1)**
+- HorizontalPodAutoscaler 完整支持
+
+## 📋 使用要求
+
+📌 **Go 1.24**
+📌 **Kubernetes 集群访问**（通过 `kubeconfig` 或集群内服务账户）
 
 ## 📦 主要依赖
 
-本项目依赖于几个关键的 Go 模块：
+🧩 **核心库**：
+- `github.com/mark3labs/mcp-go` - MCP 协议实现
+- `sigs.k8s.io/controller-runtime` - Kubernetes 客户端
+- `k8s.io/client-go` - 核心 Kubernetes 库
+- `github.com/spf13/cobra` - CLI 结构
+- `go.uber.org/zap` - 日志记录
+- `sigs.k8s.io/yaml` - YAML 处理
 
-* `github.com/mark3labs/mcp-go`（用于 MCP 服务器/协议）
-* `sigs.k8s.io/controller-runtime`（用于 Kubernetes 客户端交互）
-* `k8s.io/client-go`（核心 Kubernetes 库）
-* `github.com/spf13/cobra`（用于 CLI 结构）
-* `go.uber.org/zap`（用于日志记录）
-* `sigs.k8s.io/yaml`（用于 YAML 处理）
+## 🔨 构建方法
 
-*（注：具体版本在未提供的 `go.mod` 中管理）*
-
-## 🔨 构建
-
-### 从源代码构建
-
-构建可执行文件：
+### 📥 源代码构建
 
 ```bash
 git clone https://github.com/HSn0918/kubernetes-mcp.git
@@ -66,20 +71,15 @@ go build -o kubernetes-mcp ./cmd/kubernetes-mcp
 ./kubernetes-mcp server --transport=sse --port 8080
 ```
 
-### 使用 Docker
-
-构建 Docker 镜像：
+### 🐳 Docker 构建
 
 ```bash
+# 构建镜像
 docker build -t kubernetes-mcp:latest \
   --build-arg VERSION=$(git describe --tags --always) \
   --build-arg COMMIT=$(git rev-parse HEAD) \
   --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") .
-```
 
-使用 Docker 运行：
-
-```bash
 # 使用 stdio 传输方式（默认）
 docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest
 
@@ -95,102 +95,62 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 
 ## 🚀 使用方法
 
-使用 `server` 子命令启动服务器。
+### 🔄 启动服务器
 
-### 使用标准 I/O（stdio - 默认）：
 ```shell
+# 使用标准 I/O（默认）
 ./kubernetes-mcp server
-```
 
-### 使用服务器发送事件（SSE）：
-```shell
+# 使用 SSE（服务器发送事件）
 ./kubernetes-mcp server --transport sse --port 8080
-```
-（使用 SSE 时默认监听 8080 端口）
 
-### 指定 Kubeconfig：
-
-如果您的配置文件不在标准位置，请使用 `--kubeconfig` 标志：
-```shell
+# 指定 Kubeconfig
 ./kubernetes-mcp server --kubeconfig /path/to/your/kubeconfig
-```
 
-### 查看版本：
-
-显示构建时设置的版本信息。
-```shell
+# 查看版本
 ./kubernetes-mcp version
-# 输出示例：Kubernetes-mcp version dev (commit: none, build date: unknown)
 ```
 
-## ⚙️ 配置标志
-- `--transport`：通信模式。选项：stdio（默认），sse。
-- `--port`：SSE 传输的端口号。默认：8080。
-- `--kubeconfig`：Kubernetes 配置文件的路径。（默认为标准发现：KUBECONFIG 环境变量或 ~/.kube/config）。
-- `--log-level`：日志详细程度。选项：debug，info（默认），warn，error。
-- `--log-format`：日志输出格式。选项：console（默认），json。
+### ⚙️ 配置选项
 
-## 🧩 主要功能和工具使用
+🔧 **传输方式**：`--transport` (stdio/sse)
+🔧 **端口**：`--port` (默认 8080，SSE 模式)
+🔧 **配置文件**：`--kubeconfig` (路径)
+🔧 **日志级别**：`--log-level` (debug/info/warn/error)
+🔧 **日志格式**：`--log-format` (console/json)
 
-### 通用工具
+## 🧩 高级功能
 
-以下通用工具提供了额外的集群管理和故障排查功能：
+### 📝 结构化工具
 
-- **GET_CLUSTER_INFO**：获取 Kubernetes 集群信息
-- **GET_API_RESOURCES**：列出集群中可用的 API 资源
-- **SEARCH_RESOURCES**：跨命名空间和资源类型搜索资源
-- **EXPLAIN_RESOURCE**：获取有关资源结构和字段的详细信息
-- **APPLY_MANIFEST**：将 YAML 清单应用到集群
-- **VALIDATE_MANIFEST**：验证 YAML 清单而不应用它们
-- **DIFF_MANIFEST**：比较 YAML 清单与集群中现有资源
-- **GET_EVENTS**：获取与特定资源相关的事件
+🔍 **GET_CLUSTER_INFO**：获取集群信息与版本详情
+🔍 **GET_API_RESOURCES**：列出集群可用 API 资源
+🔍 **SEARCH_RESOURCES**：跨命名空间和资源类型搜索
+🔍 **EXPLAIN_RESOURCE**：获取资源结构和字段详情
+🔍 **APPLY_MANIFEST**：应用 YAML 清单到集群
+🔍 **VALIDATE_MANIFEST**：验证 YAML 清单格式
+🔍 **DIFF_MANIFEST**：比较 YAML 与集群现有资源
+🔍 **GET_EVENTS**：获取特定资源相关事件
 
-### 使用标签选择器列出资源
+### 💡 提示词系统
 
-所有的列表操作现在都支持使用标签选择器进行资源过滤：
+🔖 **KUBERNETES_YAML_PROMPT**：生成标准 Kubernetes YAML
+🔖 **KUBERNETES_QUERY_PROMPT**：Kubernetes 操作指导
+🔖 **TROUBLESHOOT_PODS_PROMPT**：Pod 问题排查指南
+🔖 **TROUBLESHOOT_NODES_PROMPT**：节点问题排查指南
 
-```
-# 基本格式
-LIST_<API_GROUP>_RESOURCES kind=<资源类型> apiVersion=<API版本> [namespace=<命名空间>] [labelSelector=<选择器>]
+### 🔄 标准资源操作
 
-# 示例：
-# 列出 'default' 命名空间中带有 app=nginx 标签的所有 Deployment
-LIST_APPS_RESOURCES kind=Deployment apiVersion=apps/v1 namespace=default labelSelector=app=nginx
+每个 API 组支持以下操作：
+- **列出资源**：获取资源列表，支持按命名空间和标签过滤
+- **获取资源**：以 YAML 格式检索特定资源
+- **描述资源**：获取资源详细可读描述
+- **创建资源**：从 YAML 创建新资源
+- **更新资源**：使用 YAML 更新现有资源
+- **删除资源**：移除特定资源
 
-# 列出 'kube-system' 命名空间中带有 tier=control-plane 标签的所有 Pod
-LIST_CORE_RESOURCES kind=Pod apiVersion=v1 namespace=kube-system labelSelector=tier=control-plane
+### 🌟 核心 API 组特殊操作
 
-# 更复杂的选择器
-LIST_CORE_RESOURCES kind=Pod apiVersion=v1 labelSelector=environment in (production,staging),tier=frontend
-```
-
-### 资源管理操作
-
-每个 API 组都支持标准的资源操作：
-
-- **列出资源：** 获取资源列表，可选择按命名空间和标签进行过滤
-- **获取资源：** 以 YAML 格式检索特定资源
-- **描述资源：** 获取资源的详细可读描述
-- **创建资源：** 从 YAML 创建新资源
-- **更新资源：** 使用 YAML 更新现有资源
-- **删除资源：** 移除特定资源
-
-### 核心 API 组特殊操作
-
-- **获取 Pod 日志：** 检索特定 Pod 容器的日志
-- **列出命名空间：** 查看集群中所有可用的命名空间
-- **列出节点：** 查看集群中所有节点及其状态
-
-## 🌟 支持的 API 组
-
-以下所有 API 组均已完整实现，支持完整的 CRUD 操作：
-
-- **核心 API 组 (v1)**：Pod、Service、ConfigMap、Secret 等
-- **Apps API 组 (apps/v1)**：Deployment、ReplicaSet、StatefulSet、DaemonSet
-- **Batch API 组 (batch/v1)**：Job、CronJob
-- **Networking API 组 (networking.k8s.io/v1)**：Ingress、NetworkPolicy
-- **RBAC API 组 (rbac.authorization.k8s.io/v1)**：Role、RoleBinding、ClusterRole、ClusterRoleBinding
-- **Storage API 组 (storage.k8s.io/v1)**：StorageClass、VolumeAttachment
-- **Policy API 组 (policy/v1beta1)**：PodSecurityPolicy、PodDisruptionBudget
-- **API Extensions API 组 (apiextensions.k8s.io/v1)**：CustomResourceDefinition
-- **Autoscaling API 组 (autoscaling/v1)**：HorizontalPodAutoscaler
+- **获取 Pod 日志**：检索特定 Pod 容器的日志
+- **列出命名空间**：查看集群中所有可用命名空间
+- **列出节点**：查看集群中所有节点及其状态
