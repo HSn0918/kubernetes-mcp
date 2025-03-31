@@ -6,7 +6,7 @@
 
 [English](README.md) | 中文
 
-✨ 一个使用 Go 语言设计的 Model Capable Protocol (MCP) 服务器实现，用于与 Kubernetes 集群交互。支持 MCP 兼容的客户端通过定义的工具执行 Kubernetes 操作。
+✨ 一个使用 Go 语言设计的 Model Context Protocol (MCP) 服务器实现，用于与 Kubernetes 集群交互。支持 MCP 兼容的客户端通过定义的工具执行 Kubernetes 操作。
 
 ## 📌 核心功能
 
