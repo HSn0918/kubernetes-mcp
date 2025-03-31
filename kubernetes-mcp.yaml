@@ -1,29 +1,23 @@
-# --- Namespace (建議: 先创建 Namespace, 例如: kubectl create namespace mcp-system) ---
-# apiVersion: v1
-# kind: Namespace
-# metadata:
-#   name: mcp-system # 示例 Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-system
 
 ---
-# 1. ServiceAccount (sa) - 为 kubernetes-mcp Pod 提供身份
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kubernetes-mcp-sa
-  # namespace: mcp-system # 确保 Namespace 与其他资源一致
-  namespace: default # 或者您选择的其他 Namespace
+  namespace: mcp-system
 
 ---
-# 2. Role - 定义在 Namespace 内管理资源的权限
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: kubernetes-mcp-role
-  # namespace: mcp-system # 确保 Namespace 与其他资源一致
-  namespace: default # 或者您选择的其他 Namespace
+  namespace: mcp-system
 rules:
-  # 核心 API 组 (v1) 权限
-  - apiGroups: [""] # "" 表示核心 API 组
+  - apiGroups: [""]
     resources:
       - pods
       - services
@@ -32,7 +26,6 @@ rules:
       - persistentvolumeclaims
       - serviceaccounts
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Apps API 组 (apps/v1) 权限
   - apiGroups: ["apps"]
     resources:
       - deployments
@@ -40,139 +33,123 @@ rules:
       - daemonsets
       - replicasets
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # --- 根据需要添加其他 API 组的权限 ---
 
 ---
-# 3. RoleBinding - 将上面的 Role 绑定到 ServiceAccount (Namespace 内部权限)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: kubernetes-mcp-rolebinding
-  # namespace: mcp-system # 确保 Namespace 与其他资源一致
-  namespace: default # 或者您选择的其他 Namespace
+  namespace: mcp-system
 subjects:
   - kind: ServiceAccount
-    name: kubernetes-mcp-sa          # 引用上面创建的 ServiceAccount
-    # namespace: mcp-system # Subject 的 Namespace
-    namespace: default
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
 roleRef:
-  kind: Role                      # 引用上面创建的 Role (kubernetes-mcp-role)
+  kind: Role
   name: kubernetes-mcp-role
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# 4. ClusterRole - 定义列出所有 Namespaces 的集群级权限
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  # ClusterRole 没有 namespace
-  name: kubernetes-mcp-namespace-lister # ClusterRole 的名称
+  name: kubernetes-mcp-namespace-lister
 rules:
-  - apiGroups: [""] # "" 表示核心 API 组
+  - apiGroups: [""]
     resources: ["namespaces"]
-    verbs: ["get", "list", "watch"] # 允许获取、列出和監視 Namespace
+    verbs: ["get", "list", "watch"]
 
 ---
-# 5. ClusterRoleBinding - 将上面的 ClusterRole 绑定到 ServiceAccount (集群权限)
-#    注意：这里使用了 ClusterRoleBinding 而不是 RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding # <--- 这里是 ClusterRoleBinding
+kind: ClusterRoleBinding
 metadata:
-  # ClusterRoleBinding 没有 namespace
-  name: kubernetes-mcp-lister-clusterbinding # 为这个绑定命名
+  name: kubernetes-mcp-lister-clusterbinding
 subjects:
   - kind: ServiceAccount
-    name: kubernetes-mcp-sa          # 引用目標 ServiceAccount
-    namespace: default              # ServiceAccount 所在的 Namespace (必须指定)
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
 roleRef:
-  kind: ClusterRole               # 這裡引用的是 ClusterRole
-  name: kubernetes-mcp-namespace-lister # 引用上面創建的 ClusterRole 名稱
+  kind: ClusterRole
+  name: kubernetes-mcp-namespace-lister
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# 6. Deployment - 部署 kubernetes-mcp 应用 (包含健康检查和修正后的路径)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kubernetes-mcp-deployment
-  # namespace: mcp-system # 确保 Namespace 与其他资源一致
-  namespace: default # 或者您选择的其他 Namespace
+  namespace: mcp-system
   labels:
-    app: kubernetes-mcp           # Deployment 自身的标签
+    app: kubernetes-mcp
 spec:
-  replicas: 1                     # 运行 1 个实例
+  replicas: 1
   selector:
     matchLabels:
-      app: kubernetes-mcp         # 选择具有 'app: kubernetes-mcp' 标签的 Pod
+      app: kubernetes-mcp
   template:
     metadata:
       labels:
-        app: kubernetes-mcp       # Pod 的标签
+        app: kubernetes-mcp
     spec:
-      serviceAccountName: kubernetes-mcp-sa # 使用上面创建的 ServiceAccount
+      serviceAccountName: kubernetes-mcp-sa
       containers:
         - name: kubernetes-mcp-container
-          # 使用指定的镜像
-          image: hsn0918/kubernetes-mcp:latest # 建议替换为具体的版本标签
-          imagePullPolicy: Always # 或者 IfNotPresent
-          # 定义容器启动命令和参数 (使用修正后的执行档路径 /app/kubernetes-mcp)
-          command: ["/app/kubernetes-mcp"] # <-- 修正路径
+          image: hsn0918/kubernetes-mcp:latest
+          imagePullPolicy: Always
+          command: ["/app/kubernetes-mcp"]
           args:
             - "server"
-            - "--transport=sse"         # 使用 SSE 传输协议
-            - "--port=8080"             # 主应用端口
-            - "--health-port=8081"      # 健康检查端口
-            - "--log-level=info"        # 日志级别 (可选: debug, warn, error)
-            - "--log-format=console"    # 日志格式 (可选: json)
+            - "--transport=sse"
+            - "--port=8080"
+            - "--health-port=8081"
+            - "--log-level=info"
+            - "--log-format=console"
           ports:
-            - name: http-sse            # 主应用端口 (SSE)
+            - name: http-sse
               containerPort: 8080
               protocol: TCP
-            - name: http-health         # 健康检查端口
-              containerPort: 8081       # 健康检查监听的端口
+            - name: http-health
+              containerPort: 8081
               protocol: TCP
-          resources:                  # (可选) 资源请求和限制
+          resources:
             requests:
               memory: "128Mi"
               cpu: "100m"
             limits:
               memory: "256Mi"
               cpu: "500m"
-          # --- Liveness 和 Readiness Probes ---
           livenessProbe:
             httpGet:
-              path: /healthz          # Liveness 检查路径
-              port: http-health       # 指向健康检查端口 (名称或数字 8081)
-            initialDelaySeconds: 15   # 启动后 15 秒开始检查
-            periodSeconds: 20         # 每 20 秒检查一次
-            timeoutSeconds: 2         # 超时时间
-            failureThreshold: 3       # 连续失败 3 次则认为不存活
+              path: /healthz
+              port: http-health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /readyz           # Readiness 检查路径
-              port: http-health       # 指向健康检查端口 (名称或数字 8081)
-            initialDelaySeconds: 10   # 启动后 10 秒开始检查
-            periodSeconds: 10         # 每 10 秒检查一次
-            timeoutSeconds: 2         # 超时时间
-            successThreshold: 1       # 成功 1 次即认为就绪
-            failureThreshold: 3       # 连续失败 3 次则认为不就绪
+              path: /readyz
+              port: http-health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
 
 ---
-# 7. Service (svc) - 暴露 kubernetes-mcp Deployment 的主应用端口
 apiVersion: v1
 kind: Service
 metadata:
   name: kubernetes-mcp-service
-  # namespace: mcp-system # 确保 Namespace 与其他资源一致
-  namespace: default # 或者您选择的其他 Namespace
+  namespace: mcp-system
   labels:
     app: kubernetes-mcp
 spec:
   selector:
-    app: kubernetes-mcp           # 选择具有 'app: kubernetes-mcp' 标签的 Pod
+    app: kubernetes-mcp
   ports:
     - name: http-sse
       protocol: TCP
-      port: 8080                  # Service 监听的端口 (与主应用端口一致)
-      targetPort: http-sse        # 流量转发到 Pod 的主应用端口 (名称或数字 8080)
-  type: ClusterIP                 # ClusterIP 是最常见的内部服务类型
+      port: 8080
+      targetPort: http-sse
+  type: ClusterIP
