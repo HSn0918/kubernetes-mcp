@@ -13,8 +13,6 @@
 - 🔹 **MCP 服务器**：实现 `mcp-go` 库提供 MCP 功能
 - 🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
 - 🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
-- 🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
-- 🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
 
 ## 🛠️ 资源管理工具
 

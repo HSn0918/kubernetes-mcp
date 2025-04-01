@@ -14,9 +14,6 @@ English | [中文](README_ZH.md)
 - 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
 - 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
 
-- 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
-- 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
-
 ## 🛠️ Resource Management Tools
 
 ### 📊 Implemented API Groups
