@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
@@ -57,10 +58,9 @@ func (h *MetricsHandler) Handle(ctx context.Context, request mcp.CallToolRequest
 // Register registers metric tools to the MCP server
 func (h *MetricsHandler) Register(server *server.MCPServer) {
 	h.Log.Info("Registering metrics handlers")
-
 	// Register node metrics tool
 	server.AddTool(mcp.NewTool(GET_NODE_METRICS,
-		mcp.WithDescription("Get Kubernetes node resource usage metrics"),
+		mcp.WithDescription("Get Kubernetes node metrics"),
 		mcp.WithString("nodeName",
 			mcp.Description("Node name (optional, retrieves all nodes if not specified)"),
 		),
@@ -69,16 +69,16 @@ func (h *MetricsHandler) Register(server *server.MCPServer) {
 			mcp.DefaultString("cpu"),
 		),
 		mcp.WithString("fieldSelector",
-			mcp.Description("Kubernetes field selector (e.g. 'metadata.name=node-1,status.phase=Running')"),
+			mcp.Description("Kubernetes field selector (e.g. 'metadata.name=node-1')"),
 		),
 		mcp.WithString("labelSelector",
-			mcp.Description("Kubernetes label selector (e.g. 'app=nginx,tier=frontend')"),
+			mcp.Description("Kubernetes label selector (e.g. 'kubernetes.io/role=master')"),
 		),
 	), h.GetNodeMetrics)
 
 	// Register pod metrics tool
 	server.AddTool(mcp.NewTool(GET_POD_METRICS,
-		mcp.WithDescription("Get Kubernetes Pod resource usage metrics"),
+		mcp.WithDescription("Get Kubernetes pod metrics"),
 		mcp.WithString("namespace",
 			mcp.Description("Namespace (optional, retrieves all namespaces if not specified)"),
 		),
@@ -140,6 +140,40 @@ func (h *MetricsHandler) Register(server *server.MCPServer) {
 			mcp.Description("Kubernetes label selector (e.g. 'app=nginx,tier=frontend')"),
 		),
 	), h.GetTopConsumers)
+
+	// 注册集群资源使用情况提示词
+	server.AddPrompt(mcp.NewPrompt("CLUSTER_RESOURCE_USAGE",
+		mcp.WithPromptDescription("获取Kubernetes集群资源使用情况"),
+		mcp.WithArgument("resource_type",
+			mcp.ArgumentDescription("资源类型 (cpu, memory, storage, pods)"),
+			mcp.RequiredArgument(),
+		),
+	), h.ClusterResourceUsagePrompt)
+
+	// 注册节点资源使用情况提示词
+	server.AddPrompt(mcp.NewPrompt("NODE_RESOURCE_USAGE",
+		mcp.WithPromptDescription("获取Kubernetes节点资源使用情况"),
+		mcp.WithArgument("node_name",
+			mcp.ArgumentDescription("节点名称（可选）"),
+		),
+		mcp.WithArgument("sort_by",
+			mcp.ArgumentDescription("排序方式 (cpu, memory, cpu_percent, memory_percent, name)"),
+		),
+	), h.NodeResourceUsagePrompt)
+
+	// 注册Pod资源使用情况提示词
+	server.AddPrompt(mcp.NewPrompt("POD_RESOURCE_USAGE",
+		mcp.WithPromptDescription("获取Kubernetes Pod资源使用情况"),
+		mcp.WithArgument("namespace",
+			mcp.ArgumentDescription("命名空间（可选）"),
+		),
+		mcp.WithArgument("pod_name",
+			mcp.ArgumentDescription("Pod名称（可选）"),
+		),
+		mcp.WithArgument("sort_by",
+			mcp.ArgumentDescription("排序方式 (cpu, memory, name)"),
+		),
+	), h.PodResourceUsagePrompt)
 }
 
 // GetNodeMetrics retrieves node resource usage metrics
@@ -574,4 +608,112 @@ func (h *MetricsHandler) GetTopConsumers(
 			},
 		},
 	}, nil
+}
+
+// ClusterResourceUsagePrompt 处理集群资源使用情况提示词
+func (h *MetricsHandler) ClusterResourceUsagePrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	h.Log.Info("处理集群资源使用情况提示词")
+
+	// 序列化模板为JSON格式
+	template := models.ClusterResourcePrompt
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建promptText并加入JSON内容
+	var promptText strings.Builder
+	promptText.WriteString("=== Kubernetes集群资源使用情况提示词 ===\n\n")
+	promptText.WriteString(string(jsonData))
+
+	// 创建标准的GetPromptResult
+	return mcp.NewGetPromptResult(
+		"Kubernetes集群资源使用情况",
+		[]mcp.PromptMessage{
+			mcp.NewPromptMessage(
+				"system",
+				mcp.NewTextContent("你是Kubernetes集群管理员，提供准确的集群资源使用情况分析。"),
+			),
+			mcp.NewPromptMessage(
+				"user",
+				mcp.NewTextContent("请分析Kubernetes集群的资源使用情况，包括CPU、内存、存储和Pod数量。"),
+			),
+			mcp.NewPromptMessage(
+				"assistant",
+				mcp.NewTextContent("我会为你提供集群资源使用情况的详细分析，包括资源使用百分比和可用资源状态。"),
+			),
+		},
+	), nil
+}
+
+// NodeResourceUsagePrompt 处理节点资源使用情况提示词
+func (h *MetricsHandler) NodeResourceUsagePrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	h.Log.Info("处理节点资源使用情况提示词")
+
+	// 序列化模板为JSON格式
+	template := models.NodeResourcePrompt
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建promptText并加入JSON内容
+	var promptText strings.Builder
+	promptText.WriteString("=== Kubernetes节点资源使用情况提示词 ===\n\n")
+	promptText.WriteString(string(jsonData))
+
+	// 创建标准的GetPromptResult
+	return mcp.NewGetPromptResult(
+		"Kubernetes节点资源使用情况",
+		[]mcp.PromptMessage{
+			mcp.NewPromptMessage(
+				"system",
+				mcp.NewTextContent("你是Kubernetes集群管理员，提供准确的节点资源使用情况分析。"),
+			),
+			mcp.NewPromptMessage(
+				"user",
+				mcp.NewTextContent("请分析Kubernetes集群中各节点的资源使用情况，帮我找出负载高的节点。"),
+			),
+			mcp.NewPromptMessage(
+				"assistant",
+				mcp.NewTextContent("我会为你分析各节点的CPU和内存使用情况，并帮你识别负载较高或资源紧张的节点。"),
+			),
+		},
+	), nil
+}
+
+// PodResourceUsagePrompt 处理Pod资源使用情况提示词
+func (h *MetricsHandler) PodResourceUsagePrompt(ctx context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	h.Log.Info("处理Pod资源使用情况提示词")
+
+	// 序列化模板为JSON格式
+	template := models.PodResourcePrompt
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建promptText并加入JSON内容
+	var promptText strings.Builder
+	promptText.WriteString("=== Kubernetes Pod资源使用情况提示词 ===\n\n")
+	promptText.WriteString(string(jsonData))
+
+	// 创建标准的GetPromptResult
+	return mcp.NewGetPromptResult(
+		"Kubernetes Pod资源使用情况",
+		[]mcp.PromptMessage{
+			mcp.NewPromptMessage(
+				"system",
+				mcp.NewTextContent("你是Kubernetes集群管理员，提供准确的Pod资源使用情况分析。"),
+			),
+			mcp.NewPromptMessage(
+				"user",
+				mcp.NewTextContent("请分析Kubernetes集群中各Pod的资源使用情况，帮我找出资源消耗较高的Pod。"),
+			),
+			mcp.NewPromptMessage(
+				"assistant",
+				mcp.NewTextContent("我会为你分析各Pod的CPU和内存使用情况，并帮你识别资源消耗较高的Pod。"),
+			),
+		},
+	), nil
 }

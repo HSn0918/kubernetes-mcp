@@ -2,11 +2,13 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -58,16 +60,19 @@ func (h *PromptHandler) Handle(ctx context.Context, request mcp.CallToolRequest)
 
 // handleKubernetesYAMLPrompt 处理 Kubernetes YAML 生成提示词工具请求
 func (h *PromptHandler) handleKubernetesYAMLPrompt(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 处理参数并调用相应的提示词处理函数
-	systemPrompt := "你是一位Kubernetes专家。请根据用户的需求，生成符合最佳实践的YAML资源清单。"
-	userPrompt := "我需要一个Kubernetes资源清单。"
-	assistantResponse := "我会帮你创建一个符合Kubernetes最佳实践的YAML配置。"
+	// 使用models中定义的模板
+	template := models.KubernetesYAMLPrompt
 
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建带有JSON的响应文本
 	var promptText strings.Builder
 	promptText.WriteString("=== Kubernetes YAML 生成提示词 ===\n\n")
-	promptText.WriteString(fmt.Sprintf("系统: %s\n\n", systemPrompt))
-	promptText.WriteString(fmt.Sprintf("用户: %s\n\n", userPrompt))
-	promptText.WriteString(fmt.Sprintf("助手: %s\n", assistantResponse))
+	promptText.WriteString(string(jsonData))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -81,16 +86,19 @@ func (h *PromptHandler) handleKubernetesYAMLPrompt(ctx context.Context, request 
 
 // handleKubernetesQueryPrompt 处理 Kubernetes 查询提示词工具请求
 func (h *PromptHandler) handleKubernetesQueryPrompt(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 处理参数并调用相应的提示词处理函数
-	systemPrompt := "你是一位Kubernetes操作专家。请提供准确的指导和操作步骤，帮助用户完成各种Kubernetes管理任务。"
-	userPrompt := "我需要在Kubernetes集群中执行某些操作，请提供指导。"
-	assistantResponse := "我会帮你提供详细的操作步骤，以下是操作指南："
+	// 使用models中定义的模板
+	template := models.KubernetesQueryPrompt
 
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建带有JSON的响应文本
 	var promptText strings.Builder
 	promptText.WriteString("=== Kubernetes操作指导提示词 ===\n\n")
-	promptText.WriteString(fmt.Sprintf("系统: %s\n\n", systemPrompt))
-	promptText.WriteString(fmt.Sprintf("用户: %s\n\n", userPrompt))
-	promptText.WriteString(fmt.Sprintf("助手: %s\n", assistantResponse))
+	promptText.WriteString(string(jsonData))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -104,16 +112,19 @@ func (h *PromptHandler) handleKubernetesQueryPrompt(ctx context.Context, request
 
 // handleTroubleshootPodsPrompt 处理 Pod 问题排查提示词工具请求
 func (h *PromptHandler) handleTroubleshootPodsPrompt(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 处理参数并调用相应的提示词处理函数
-	systemPrompt := "你是一位Kubernetes故障排查专家。分析Pod问题原因并提供解决方案。"
-	userPrompt := "我的Kubernetes Pod出现问题，请帮我排查。"
-	assistantResponse := "我会帮你诊断Pod问题并提供解决方案。以下是常见Pod问题的排查步骤："
+	// 使用models中定义的模板
+	template := models.TroubleshootPodsPrompt
 
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建带有JSON的响应文本
 	var promptText strings.Builder
 	promptText.WriteString("=== Kubernetes Pod问题排查提示词 ===\n\n")
-	promptText.WriteString(fmt.Sprintf("系统: %s\n\n", systemPrompt))
-	promptText.WriteString(fmt.Sprintf("用户: %s\n\n", userPrompt))
-	promptText.WriteString(fmt.Sprintf("助手: %s\n", assistantResponse))
+	promptText.WriteString(string(jsonData))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -127,16 +138,19 @@ func (h *PromptHandler) handleTroubleshootPodsPrompt(ctx context.Context, reques
 
 // handleTroubleshootNodesPrompt 处理节点问题排查提示词工具请求
 func (h *PromptHandler) handleTroubleshootNodesPrompt(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 处理参数并调用相应的提示词处理函数
-	systemPrompt := "你是一位Kubernetes节点管理专家。分析节点问题并提供修复方案。"
-	userPrompt := "我的Kubernetes集群节点出现问题，请帮我排查。"
-	assistantResponse := "我会帮你诊断节点问题并提供解决方案。以下是节点问题的排查步骤："
+	// 使用models中定义的模板
+	template := models.TroubleshootNodesPrompt
 
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建带有JSON的响应文本
 	var promptText strings.Builder
 	promptText.WriteString("=== Kubernetes节点问题排查提示词 ===\n\n")
-	promptText.WriteString(fmt.Sprintf("系统: %s\n\n", systemPrompt))
-	promptText.WriteString(fmt.Sprintf("用户: %s\n\n", userPrompt))
-	promptText.WriteString(fmt.Sprintf("助手: %s\n", assistantResponse))
+	promptText.WriteString(string(jsonData))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -150,16 +164,19 @@ func (h *PromptHandler) handleTroubleshootNodesPrompt(ctx context.Context, reque
 
 // handleTroubleshootNetworkPrompt 处理网络问题排查提示词工具请求
 func (h *PromptHandler) handleTroubleshootNetworkPrompt(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 处理参数并调用相应的提示词处理函数
-	systemPrompt := "你是一位Kubernetes网络专家。分析网络连接问题并提供解决方案。"
-	userPrompt := "我的Kubernetes集群网络出现问题，请帮我排查。"
-	assistantResponse := "我会帮你诊断网络问题并提供解决方案。以下是网络故障的排查步骤："
+	// 使用models中定义的模板
+	template := models.TroubleshootNetworkPrompt
 
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(template, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
+
+	// 创建带有JSON的响应文本
 	var promptText strings.Builder
 	promptText.WriteString("=== Kubernetes网络问题排查提示词 ===\n\n")
-	promptText.WriteString(fmt.Sprintf("系统: %s\n\n", systemPrompt))
-	promptText.WriteString(fmt.Sprintf("用户: %s\n\n", userPrompt))
-	promptText.WriteString(fmt.Sprintf("助手: %s\n", assistantResponse))
+	promptText.WriteString(string(jsonData))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -271,7 +288,7 @@ func (h *PromptHandler) Register(s *server.MCPServer) {
 	s.AddPrompt(mcp.NewPrompt(TROUBLESHOOT_NODES_PROMPT,
 		mcp.WithPromptDescription("Kubernetes节点问题排查"),
 		mcp.WithArgument("node_status",
-			mcp.ArgumentDescription("节点状态 (例如 NotReady, MemoryPressure, DiskPressure)"),
+			mcp.ArgumentDescription("节点状态 (例如 Ready, NotReady, MemoryPressure, DiskPressure)"),
 			mcp.RequiredArgument(),
 		),
 		mcp.WithArgument("node_conditions",
@@ -283,7 +300,7 @@ func (h *PromptHandler) Register(s *server.MCPServer) {
 	s.AddTool(mcp.NewTool(TROUBLESHOOT_NODES_PROMPT,
 		mcp.WithDescription("Kubernetes节点问题排查"),
 		mcp.WithString("node_status",
-			mcp.Description("节点状态 (例如 NotReady, MemoryPressure, DiskPressure)"),
+			mcp.Description("节点状态 (例如Ready, NotReady, MemoryPressure, DiskPressure)"),
 			mcp.Required(),
 		),
 		mcp.WithString("node_conditions",
