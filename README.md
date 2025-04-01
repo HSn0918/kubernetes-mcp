@@ -10,9 +10,12 @@ English | [中文](README_ZH.md)
 
 ## 📌 Core Features
 
-🔹 **MCP Server**: Implements the `mcp-go` library to provide MCP functionality
-🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
-🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
+- 🔹 **MCP Server**: Implements the `mcp-go` library to provide MCP functionality
+- 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
+- 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
+
+- 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
+- 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)
 
 ## 🛠️ Resource Management Tools
 
@@ -115,31 +118,31 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 
 ### ⚙️ Configuration Options
 
-🔧 **Transport**: `--transport` (stdio/sse)
-🔧 **Port**: `--port` (default 8080, SSE mode)
-🔧 **Config file**: `--kubeconfig` (path)
-🔧 **Log level**: `--log-level` (debug/info/warn/error)
-🔧 **Log format**: `--log-format` (console/json)
+- 🔧 **Transport**: `--transport` (stdio/sse)
+- 🔧 **Port**: `--port` (default 8080, SSE mode)
+- 🔧 **Config file**: `--kubeconfig` (path)
+- 🔧 **Log level**: `--log-level` (debug/info/warn/error)
+- 🔧 **Log format**: `--log-format` (console/json)
 
 ## 🧩 Advanced Features
 
-### 📝 Structured Tools
+### 🔍 Structured Tools
 
-🔍 **GET_CLUSTER_INFO**: Get cluster information and version details
-🔍 **GET_API_RESOURCES**: List available API resources in the cluster
-🔍 **SEARCH_RESOURCES**: Search across namespaces and resource types
-🔍 **EXPLAIN_RESOURCE**: Get resource structure and field details
-🔍 **APPLY_MANIFEST**: Apply YAML manifests to the cluster
-🔍 **VALIDATE_MANIFEST**: Validate YAML manifest format
-🔍 **DIFF_MANIFEST**: Compare YAML with existing cluster resources
-🔍 **GET_EVENTS**: Get events related to specific resources
+- 🔍 **GET_CLUSTER_INFO**: Get cluster information and version details
+- 🔍 **GET_API_RESOURCES**: List available API resources in the cluster
+- 🔍 **SEARCH_RESOURCES**: Search across namespaces and resource types
+- 🔍 **EXPLAIN_RESOURCE**: Get resource structure and field details
+- 🔍 **APPLY_MANIFEST**: Apply YAML manifests to the cluster
+- 🔍 **VALIDATE_MANIFEST**: Validate YAML manifest format
+- 🔍 **DIFF_MANIFEST**: Compare YAML with existing cluster resources
+- 🔍 **GET_EVENTS**: Get events related to specific resources
 
 ### 💡 Prompt System
 
-🔖 **KUBERNETES_YAML_PROMPT**: Generate standard Kubernetes YAML
-🔖 **KUBERNETES_QUERY_PROMPT**: Kubernetes operation guidance
-🔖 **TROUBLESHOOT_PODS_PROMPT**: Pod troubleshooting guide
-🔖 **TROUBLESHOOT_NODES_PROMPT**: Node troubleshooting guide
+- 🔖 **KUBERNETES_YAML_PROMPT**: Generate standard Kubernetes YAML
+- 🔖 **KUBERNETES_QUERY_PROMPT**: Kubernetes operation guidance
+- 🔖 **TROUBLESHOOT_PODS_PROMPT**: Pod troubleshooting guide
+- 🔖 **TROUBLESHOOT_NODES_PROMPT**: Node troubleshooting guide
 
 ### 🔄 Standard Resource Operations
 

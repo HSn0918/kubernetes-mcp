@@ -10,9 +10,11 @@
 
 ## 📌 核心功能
 
-🔹 **MCP 服务器**：实现 `mcp-go` 库提供 MCP 功能
-🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
-🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
+- 🔹 **MCP 服务器**：实现 `mcp-go` 库提供 MCP 功能
+- 🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
+- 🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
+- 🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
+- 🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）
 
 ## 🛠️ 资源管理工具
 
@@ -115,31 +117,31 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 
 ### ⚙️ 配置选项
 
-🔧 **传输方式**：`--transport` (stdio/sse)
-🔧 **端口**：`--port` (默认 8080，SSE 模式)
-🔧 **配置文件**：`--kubeconfig` (路径)
-🔧 **日志级别**：`--log-level` (debug/info/warn/error)
-🔧 **日志格式**：`--log-format` (console/json)
+- 🔧 **传输方式**：`--transport` (stdio/sse)
+- 🔧 **端口**：`--port` (默认 8080，SSE 模式)
+- 🔧 **配置文件**：`--kubeconfig` (路径)
+- 🔧 **日志级别**：`--log-level` (debug/info/warn/error)
+- 🔧 **日志格式**：`--log-format` (console/json)
 
 ## 🧩 高级功能
 
 ### 📝 结构化工具
 
-🔍 **GET_CLUSTER_INFO**：获取集群信息与版本详情
-🔍 **GET_API_RESOURCES**：列出集群可用 API 资源
-🔍 **SEARCH_RESOURCES**：跨命名空间和资源类型搜索
-🔍 **EXPLAIN_RESOURCE**：获取资源结构和字段详情
-🔍 **APPLY_MANIFEST**：应用 YAML 清单到集群
-🔍 **VALIDATE_MANIFEST**：验证 YAML 清单格式
-🔍 **DIFF_MANIFEST**：比较 YAML 与集群现有资源
-🔍 **GET_EVENTS**：获取特定资源相关事件
+- 🔍 **GET_CLUSTER_INFO**：获取集群信息与版本详情
+- 🔍 **GET_API_RESOURCES**：列出集群可用 API 资源
+- 🔍 **SEARCH_RESOURCES**：跨命名空间和资源类型搜索
+- 🔍 **EXPLAIN_RESOURCE**：获取资源结构和字段详情
+- 🔍 **APPLY_MANIFEST**：应用 YAML 清单到集群
+- 🔍 **VALIDATE_MANIFEST**：验证 YAML 清单格式
+- 🔍 **DIFF_MANIFEST**：比较 YAML 与集群现有资源
+- 🔍 **GET_EVENTS**：获取特定资源相关事件
 
 ### 💡 提示词系统
 
-🔖 **KUBERNETES_YAML_PROMPT**：生成标准 Kubernetes YAML
-🔖 **KUBERNETES_QUERY_PROMPT**：Kubernetes 操作指导
-🔖 **TROUBLESHOOT_PODS_PROMPT**：Pod 问题排查指南
-🔖 **TROUBLESHOOT_NODES_PROMPT**：节点问题排查指南
+- 🔖 **KUBERNETES_YAML_PROMPT**：生成标准 Kubernetes YAML
+- 🔖 **KUBERNETES_QUERY_PROMPT**：Kubernetes 操作指导
+- 🔖 **TROUBLESHOOT_PODS_PROMPT**：Pod 问题排查指南
+- 🔖 **TROUBLESHOOT_NODES_PROMPT**：节点问题排查指南
 
 ### 🔄 标准资源操作
 
