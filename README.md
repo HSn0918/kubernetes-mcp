@@ -163,3 +163,32 @@ Each API group supports the following operations:
 - **Time-based Distribution Analysis**: Analyzes error occurrence patterns over time
 - **HTTP Status Code Tracking**: Monitors and categorizes HTTP response codes
 - **Performance Metrics**: Tracks response times and resource usage statistics
+
+### 📊 Cluster Metrics Features
+
+- 🔍 **GET_NODE_METRICS**: Retrieve node resource usage metrics, including CPU and memory utilization
+- 🔍 **GET_POD_METRICS**: Get Pod resource usage metrics to monitor container CPU and memory consumption
+- 🔍 **GET_RESOURCE_METRICS**: Obtain overall cluster resource usage including CPU, memory, storage, and Pod count statistics
+- 🔍 **GET_TOP_CONSUMERS**: Identify Pods with highest resource consumption to pinpoint resource bottlenecks
+
+All metrics APIs support:
+- Flexible sorting: Sort by CPU, memory consumption or utilization percentage
+- Detailed filtering: Use field selectors and label selectors to target resources precisely
+- Result limitation: Control the number of returned results
+- JSON formatting: All responses are returned in structured JSON format for easy processing
+
+### 📝 Cluster Metrics Prompt System
+
+- 🔖 **CLUSTER_RESOURCE_USAGE**: Guidance for retrieving cluster resource usage
+- 🔖 **NODE_RESOURCE_USAGE**: Guidance for retrieving node resource usage
+- 🔖 **POD_RESOURCE_USAGE**: Guidance for retrieving Pod resource usage
+
+### 📋 API Response Formatting
+
+All API responses are now standardized in JSON format:
+- 🔸 **Structured Responses**: All API responses are returned in consistent JSON structures
+- 🔸 **Node Lists**: Include detailed information such as node name, status, roles, labels, taints, and allocatable resources
+- 🔸 **Namespace Lists**: Include namespace name, status, labels, annotations, and other details
+- 🔸 **Logs and Log Analysis**: Log content and analysis results are returned in structured format for easy processing
+- 🔸 **Resource Metrics**: CPU, memory, storage metrics are returned in structured format including raw values and percentages
+- 🔸 **Time Formatting**: Supports human-readable time formats in both English and Chinese, such as "5 minutes ago"/"5分钟前"
