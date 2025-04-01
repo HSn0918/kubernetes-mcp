@@ -3,9 +3,11 @@ package v1
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -16,6 +18,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
@@ -304,29 +307,28 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 		displayLineCount = tailLines
 	}
 
-	// --- 构建摘要信息 ---
-	summaryDetails := fmt.Sprintf("Pod: %s | Namespace: %s", name, namespace)
-	if container != "" {
-		summaryDetails += fmt.Sprintf(" | Container: %s", container)
-	}
-	summaryDetails += fmt.Sprintf(" | Options: previous=%t, timestamps=%t", previous, timestamps)
-	if tailLines > 0 {
-		summaryDetails += fmt.Sprintf(", tailLines=%d", tailLines)
-	} else {
-		summaryDetails += ", tailLines=All"
-	}
-	summaryDetails += fmt.Sprintf(" | Displaying %s lines", humanize.Comma(int64(displayLineCount)))
-	if truncated {
-		summaryDetails += fmt.Sprintf(" (truncated from %s lines, showing last %s)",
-			humanize.Comma(int64(actualLineCount)),
-			humanize.Comma(int64(defaultDisplayTailLines)))
+	// --- 构建JSON响应 ---
+	logResponse := models.PodLogsResponse{
+		Pod:          name,
+		Namespace:    namespace,
+		Container:    container,
+		Previous:     previous,
+		Timestamps:   timestamps,
+		TailLines:    tailLines,
+		LineCount:    displayLineCount,
+		TotalLines:   actualLineCount,
+		Truncated:    truncated,
+		LogSize:      uint64(logLengthBytes),
+		LogSizeHuman: humanize.Bytes(uint64(logLengthBytes)),
+		Logs:         displayLogs,
+		RetrievedAt:  time.Now(),
 	}
 
-	// 添加字节大小信息
-	summaryDetails += fmt.Sprintf(" | Total Size: %s", humanize.Bytes(uint64(logLengthBytes)))
-
-	// --- 格式化最终输出 ---
-	formattedOutput := utils.FormatPodLogs(summaryDetails, displayLogs)
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(logResponse, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
 
 	reqLogger.Info("Pod logs retrieved successfully",
 		"bytes", humanize.Bytes(uint64(logLengthBytes)),
@@ -337,7 +339,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: formattedOutput,
+				Text: string(jsonData),
 			},
 		},
 	}, nil
@@ -440,8 +442,21 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 
 	analysis := analyzer.AnalyzeLogsWithPrompt(logLines, prompt)
 
-	// --- 构建分析报告 ---
-	formattedAnalysis := utils.FormatLogAnalysis(name, namespace, container, analysis, actualLineCount, prompt)
+	// --- 使用转换函数创建JSON响应 ---
+	analysisResponse := models.NewLogAnalysisResponseFromResult(
+		name, namespace, container,
+		analysis,
+		actualLineCount,
+		previous,
+		customErrorPattern,
+		prompt,
+	)
+
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(analysisResponse, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+	}
 
 	reqLogger.Info("Pod logs analysis completed", "linesAnalyzed", actualLineCount)
 
@@ -449,7 +464,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: formattedAnalysis,
+				Text: string(jsonData),
 			},
 		},
 	}, nil
