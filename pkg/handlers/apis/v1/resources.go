@@ -1,13 +1,13 @@
 package v1
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"strings"
 
+	humanize "github.com/dustin/go-humanize"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
@@ -16,10 +16,12 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
 const (
-	GET_POD_LOGS = "GET_POD_LOGS"
+	GET_POD_LOGS     = "GET_POD_LOGS"
+	ANALYZE_POD_LOGS = "ANALYZE_POD_LOGS"
 )
 
 // ResourceHandlerImpl 核心资源处理程序实现
@@ -47,6 +49,8 @@ func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRe
 	switch request.Method {
 	case GET_POD_LOGS:
 		return h.GetPodLogs(ctx, request)
+	case ANALYZE_POD_LOGS:
+		return h.AnalyzePodLogs(ctx, request)
 	default:
 		// 其他方法使用父类的处理方法
 		return h.baseHandler.Handle(ctx, request)
@@ -85,6 +89,36 @@ func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
 			mcp.DefaultBool(true),
 		),
 	), h.GetPodLogs)
+
+	// 注册Pod日志分析工具
+	server.AddTool(mcp.NewTool(ANALYZE_POD_LOGS,
+		mcp.WithDescription("Analyze logs from a Pod and provide insights"),
+		mcp.WithString("name",
+			mcp.Description("Name of the Pod"),
+			mcp.Required(),
+		),
+		mcp.WithString("namespace",
+			mcp.Description("Kubernetes namespace"),
+			mcp.DefaultString("default"),
+		),
+		mcp.WithString("container",
+			mcp.Description("Container name (if Pod has multiple containers)"),
+		),
+		mcp.WithNumber("tailLines",
+			mcp.Description("Number of lines to analyze from the end of the logs"),
+			mcp.DefaultNumber(1000),
+		),
+		mcp.WithBoolean("previous",
+			mcp.Description("Whether to analyze logs from previous terminated container instance"),
+			mcp.DefaultBool(false),
+		),
+		mcp.WithString("errorPattern",
+			mcp.Description("Custom regex pattern to identify errors (default looks for common error keywords)"),
+		),
+		mcp.WithString("prompt",
+			mcp.Description("Additional prompt for customizing the analysis focus"),
+		),
+	), h.AnalyzePodLogs)
 }
 
 // GetScope 实现ToolHandler接口
@@ -158,27 +192,27 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 ) (*mcp.CallToolResult, error) {
 	// --- 参数提取 ---
 	arguments := request.Params.Arguments
-	name, _ := arguments["name"].(string)
-	namespaceArg, _ := arguments["namespace"].(string)
+
+	// Type assertion with proper error handling
+	nameVal, ok := arguments["name"]
+	if !ok || nameVal == nil {
+		return nil, fmt.Errorf("Pod name is required")
+	}
+	name := nameVal.(string)
+
+	namespaceArg, _ := arguments["namespace"].(string) // namespace is optional with default
 
 	// 获取命名空间，使用合适的默认值
 	namespace := h.baseHandler.GetNamespaceWithDefault(namespaceArg)
 
-	container, _ := arguments["container"].(string)
-	tailLinesVal, _ := arguments["tailLines"]
-	// 更安全地处理可能的类型，例如 float64 (JSON 数字) -> int
-	var tailLines int
-	if tlf, ok := tailLinesVal.(float64); ok {
-		tailLines = int(tlf)
-	} else if tli, ok := tailLinesVal.(int); ok {
-		tailLines = tli
-	}
+	container, _ := arguments["container"].(string) // container is optional
+	tailLinesVal := arguments["tailLines"]          // tailLines is handled specially below
 	previous, _ := arguments["previous"].(bool)
 	timestamps, _ := arguments["timestamps"].(bool)
 
 	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
 	reqLogger.Info("Starting pod logs request", "options", map[string]interface{}{
-		"tailLines":  tailLines,
+		"tailLines":  tailLinesVal,
 		"previous":   previous,
 		"timestamps": timestamps,
 	})
@@ -189,6 +223,22 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 		Previous:   previous,
 		Timestamps: timestamps,
 	}
+
+	// 处理tailLines参数
+	var tailLines int
+	if tailLinesVal != nil {
+		// 转换tailLines为int类型
+		if tlf, ok := tailLinesVal.(float64); ok {
+			tailLines = int(tlf)
+		} else if tli, ok := tailLinesVal.(int); ok {
+			tailLines = tli
+		} else {
+			tailLines = 0 // 如果无法转换，视为不限制
+		}
+	} else {
+		tailLines = 0 // 不限制
+	}
+
 	if tailLines > 0 {
 		tailLinesInt64 := int64(tailLines)
 		podLogOptions.TailLines = &tailLinesInt64
@@ -225,6 +275,21 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	displayLogs := logsContent
 	truncated := false
 	displayLineCount := actualLineCount
+
+	// 已在上面声明了tailLines变量，这里不需要重新声明
+	if tailLinesVal != nil {
+		// 转换tailLines为int类型
+		if tlf, ok := tailLinesVal.(float64); ok {
+			tailLines = int(tlf)
+		} else if tli, ok := tailLinesVal.(int); ok {
+			tailLines = tli
+		} else {
+			tailLines = 0 // 如果无法转换，视为不限制
+		}
+	} else {
+		tailLines = 0 // 不限制
+	}
+
 	if tailLines <= 0 && actualLineCount > defaultDisplayTailLines {
 		startIndex := actualLineCount - defaultDisplayTailLines
 		displayLogs = strings.Join(logLines[startIndex:], "\n")
@@ -250,15 +315,23 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	} else {
 		summaryDetails += ", tailLines=All"
 	}
-	summaryDetails += fmt.Sprintf(" | Displaying %d lines", displayLineCount)
+	summaryDetails += fmt.Sprintf(" | Displaying %s lines", humanize.Comma(int64(displayLineCount)))
 	if truncated {
-		summaryDetails += fmt.Sprintf(" (truncated from %d lines, showing last %d)", actualLineCount, defaultDisplayTailLines)
+		summaryDetails += fmt.Sprintf(" (truncated from %s lines, showing last %s)",
+			humanize.Comma(int64(actualLineCount)),
+			humanize.Comma(int64(defaultDisplayTailLines)))
 	}
 
-	// --- 格式化最终输出 ---
-	formattedOutput := formatPodLogsImproved(summaryDetails, displayLogs)
+	// 添加字节大小信息
+	summaryDetails += fmt.Sprintf(" | Total Size: %s", humanize.Bytes(uint64(logLengthBytes)))
 
-	reqLogger.Info("Pod logs retrieved successfully", "bytes", logLengthBytes, "linesRetrieved", actualLineCount, "linesDisplayed", displayLineCount)
+	// --- 格式化最终输出 ---
+	formattedOutput := utils.FormatPodLogs(summaryDetails, displayLogs)
+
+	reqLogger.Info("Pod logs retrieved successfully",
+		"bytes", humanize.Bytes(uint64(logLengthBytes)),
+		"linesRetrieved", humanize.Comma(int64(actualLineCount)),
+		"linesDisplayed", humanize.Comma(int64(displayLineCount)))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -270,40 +343,114 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	}, nil
 }
 
-// formatPodLogsImproved 改进的日志格式化函数
-func formatPodLogsImproved(summaryDetails string, logs string) string {
-	var sb strings.Builder
-	separator := "----------------------------------------------------------------------"
+// AnalyzePodLogs 分析Pod日志并提供洞察
+func (h *ResourceHandlerImpl) AnalyzePodLogs(
+	ctx context.Context,
+	request mcp.CallToolRequest,
+) (*mcp.CallToolResult, error) {
+	// --- 参数提取 ---
+	arguments := request.Params.Arguments
 
-	// 1. 打印头部和摘要信息
-	sb.WriteString(separator)
-	sb.WriteString("\n")
-	sb.WriteString(" KUBERNETES POD LOGS\n")
-	sb.WriteString(separator)
-	sb.WriteString("\n")
-	sb.WriteString(summaryDetails)
-	sb.WriteString("\n")
-	sb.WriteString(separator)
-	sb.WriteString("\n\n")
+	// Type assertion with proper error handling
+	nameVal, ok := arguments["name"]
+	if !ok || nameVal == nil {
+		return nil, fmt.Errorf("Pod name is required")
+	}
+	name := nameVal.(string)
 
-	// 2. 打印日志内容（带缩进）
-	if strings.TrimSpace(logs) == "" {
-		sb.WriteString("  --- No logs available with the specified options. ---\n")
-	} else {
-		scanner := bufio.NewScanner(strings.NewReader(logs))
-		for scanner.Scan() {
-			sb.WriteString("  ")
-			sb.WriteString(scanner.Text())
-			sb.WriteString("\n")
+	namespaceArg, _ := arguments["namespace"].(string) // namespace is optional with default
+
+	// 获取命名空间，使用合适的默认值
+	namespace := h.baseHandler.GetNamespaceWithDefault(namespaceArg)
+
+	container, _ := arguments["container"].(string) // container is optional
+	tailLinesVal := arguments["tailLines"]          // tailLines is handled specially below
+
+	// 处理tailLines参数
+	var tailLines int
+	if tailLinesVal != nil {
+		// 转换tailLines为int类型
+		if tlf, ok := tailLinesVal.(float64); ok {
+			tailLines = int(tlf)
+		} else if tli, ok := tailLinesVal.(int); ok {
+			tailLines = tli
+		} else {
+			tailLines = 1000 // 如果无法转换，使用默认值1000
 		}
+	} else {
+		tailLines = 1000 // 默认分析1000行
 	}
 
-	// 3. 打印尾部
-	sb.WriteString("\n")
-	sb.WriteString(separator)
-	sb.WriteString("\n--- End of Logs ---\n")
-	sb.WriteString(separator)
-	sb.WriteString("\n")
+	previous, _ := arguments["previous"].(bool)
+	customErrorPattern, _ := arguments["errorPattern"].(string)
+	prompt, _ := arguments["prompt"].(string)
 
-	return sb.String()
+	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
+	reqLogger.Info("Starting pod logs analysis", "options", map[string]interface{}{
+		"tailLines":    tailLines,
+		"previous":     previous,
+		"errorPattern": customErrorPattern,
+		"prompt":       prompt,
+	})
+
+	// --- 设置日志选项 ---
+	podLogOptions := &corev1.PodLogOptions{
+		Container:  container,
+		Previous:   previous,
+		Timestamps: true, // 分析需要时间戳
+	}
+	if tailLines > 0 {
+		tailLinesInt64 := int64(tailLines)
+		podLogOptions.TailLines = &tailLinesInt64
+	}
+
+	// --- 获取和读取日志流 ---
+	logRESTRequest := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
+	podLogsStream, err := logRESTRequest.Stream(ctx)
+	if err != nil {
+		reqLogger.Error("Failed to get pod logs stream for analysis", "error", err)
+		if errors.IsNotFound(err) {
+			return nil, fmt.Errorf("Pod '%s' not found in namespace '%s'", name, namespace)
+		}
+		return nil, fmt.Errorf("failed to stream pod logs for analysis, pod %s: %w", name, err)
+	}
+	defer podLogsStream.Close()
+
+	// 读取日志内容
+	buf := new(bytes.Buffer)
+	_, err = io.CopyN(buf, podLogsStream, MAX_LOG_BYTES_LIMIT)
+	if err != nil && err != io.EOF {
+		reqLogger.Error("Failed to read pod logs stream fully for analysis", "error", err)
+	}
+
+	logsContent := buf.String()
+	logLines := strings.Split(logsContent, "\n")
+	if len(logLines) > 0 && logLines[len(logLines)-1] == "" {
+		logLines = logLines[:len(logLines)-1]
+	}
+	actualLineCount := len(logLines)
+
+	// --- 日志分析 ---
+	analyzer := utils.NewLogAnalyzer()
+
+	// 如果提供了自定义错误模式，则设置它
+	if customErrorPattern != "" {
+		analyzer = utils.NewLogAnalyzerWithPattern(customErrorPattern)
+	}
+
+	analysis := analyzer.AnalyzeLogsWithPrompt(logLines, prompt)
+
+	// --- 构建分析报告 ---
+	formattedAnalysis := utils.FormatLogAnalysis(name, namespace, container, analysis, actualLineCount, prompt)
+
+	reqLogger.Info("Pod logs analysis completed", "linesAnalyzed", actualLineCount)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: formattedAnalysis,
+			},
+		},
+	}, nil
 }

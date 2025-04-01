@@ -1482,8 +1482,8 @@ func (h *UtilityHandler) GetEvents(
 
 			// 截断过长的消息
 			message := event.Message
-			if len(message) > 70 {
-				message = message[:67] + "..."
+			if len(message) > 1024 {
+				message = message[:1021] + "..."
 			}
 
 			// 写入事件信息
