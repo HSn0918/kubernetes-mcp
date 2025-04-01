@@ -78,6 +78,9 @@ func NewHandlerProvider() interfaces.HandlerProvider {
 
 		// 提示词处理程序
 		factory.CreatePromptHandler(),
+
+		// 指标处理程序
+		factory.CreateMetricsHandler(),
 	}
 
 	return &HandlerProviderImpl{

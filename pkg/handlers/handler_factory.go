@@ -94,3 +94,8 @@ func (f *HandlerFactoryImpl) CreateUtilityHandler() interfaces.ToolHandler {
 func (f *HandlerFactoryImpl) CreatePromptHandler() interfaces.ToolHandler {
 	return base.NewPromptHandler(f.client)
 }
+
+// CreateMetricsHandler 创建指标处理程序
+func (f *HandlerFactoryImpl) CreateMetricsHandler() interfaces.ToolHandler {
+	return base.NewMetricsHandler(f.client)
+}
