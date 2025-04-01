@@ -17,6 +17,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	metricsv "k8s.io/metrics/pkg/client/clientset/versioned"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -37,6 +38,9 @@ type KubernetesClient interface {
 	// GetDiscoveryClient 提供访问 client-go discovery 客户端的方法。
 	// Discovery 客户端用于发现 Kubernetes API Server 支持的 API 组、版本和资源。
 	GetDiscoveryClient() discovery.DiscoveryInterface
+	// GetMetricsClient 提供访问 client-go metrics 客户端的方法。
+	// Metrics 客户端用于获取 Kubernetes 资源的度量信息。
+	GetMetricsClient() metricsv.Interface
 	// GetConfig 获取用于创建此客户端的原始 clientcmd 配置。
 	// 这对于需要访问底层配置细节（如上下文、集群信息等）的场景很有用。
 	GetConfig() clientcmd.ClientConfig
@@ -53,6 +57,8 @@ type k8sClientImpl struct {
 	dynamicClient dynamic.Interface
 	// Discovery 客户端，用于 API 发现。
 	discoveryClient discovery.DiscoveryInterface
+	// Metrics 客户端，用于获取 Kubernetes 资源的度量信息。
+	metricsClient metricsv.Interface
 	// 加载的原始 kubeconfig 配置信息。
 	rawConfig clientcmd.ClientConfig
 }
@@ -274,7 +280,7 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 	}
 	log.Debug("Kubernetes clientset created successfully")
 
-	// 5. 创建 DiscoveryClient 和 DynamicClient
+	// 5. 创建 DiscoveryClient 和 DynamicClient 和 metricsClient 实例
 	// DiscoveryClient 用于发现 API 资源
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
@@ -287,7 +293,10 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 		return nil, fmt.Errorf("could not create dynamic client: %w", err)
 	}
 	log.Debug("Dynamic client created successfully")
-
+	metricsClient, err := metricsv.NewForConfig(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not create metrics client: %w", err)
+	}
 	// 6. 创建并返回 k8sClientImpl 实例
 	impl := &k8sClientImpl{
 		client:          runtimeClient,
@@ -295,6 +304,7 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 		rawConfig:       rawConfig, // 注意这里保存的是 ClientConfig 接口，可能是 nil
 		discoveryClient: discoveryClient,
 		dynamicClient:   dynamicClient,
+		metricsClient:   metricsClient,
 	}
 
 	log.Info("Kubernetes client initialized successfully")
@@ -338,6 +348,10 @@ func (k *k8sClientImpl) GetDynamicClient() dynamic.Interface {
 // 这是 KubernetesClient 接口的实现方法。
 func (k *k8sClientImpl) GetDiscoveryClient() discovery.DiscoveryInterface {
 	return k.discoveryClient
+}
+
+func (k *k8sClientImpl) GetMetricsClient() metricsv.Interface {
+	return k.metricsClient
 }
 
 // GetConfig 返回 k8sClientImpl 实例中存储的原始 clientcmd 配置。

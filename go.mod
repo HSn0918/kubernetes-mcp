@@ -3,20 +3,21 @@ module github.com/hsn0918/kubernetes-mcp
 go 1.24.1
 
 require (
+	github.com/dustin/go-humanize v1.0.1
 	github.com/mark3labs/mcp-go v0.17.0
 	github.com/samber/lo v1.49.1
 	github.com/spf13/cobra v1.8.1
 	go.uber.org/zap v1.27.0
-	k8s.io/api v0.32.1
+	k8s.io/api v0.32.3
 	k8s.io/apimachinery v0.32.3
-	k8s.io/client-go v0.32.1
+	k8s.io/client-go v0.32.3
+	k8s.io/metrics v0.32.3
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
