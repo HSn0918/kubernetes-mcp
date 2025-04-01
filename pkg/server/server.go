@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hsn0918/kubernetes-mcp/cmd/kubernetes-mcp/app"
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
@@ -83,8 +84,8 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 
 	// 创建基本MCP服务器
 	mcpServer := server.NewMCPServer(
-		"kubectl-mcp",
-		"1.0.0",
+		app.Name,
+		app.Version,
 		server.WithResourceCapabilities(false, false),
 		server.WithPromptCapabilities(false),
 		server.WithLogging(),

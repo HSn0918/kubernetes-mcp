@@ -6,9 +6,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const Name = "Kubernetes-mcp"
+
 func NewRootCommand(cfg *config.Config) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "Kubernetes-mcp",
+		Use:   Name,
 		Short: "Kubernetes MCP server",
 		Long:  `A server that implements Model Capable Protocol (MCP) for Kubernetes operations.`,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
