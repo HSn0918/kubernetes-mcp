@@ -20,222 +20,279 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// KubernetesClient 定义了与Kubernetes API交互的接口 (简化后)
+// KubernetesClient 定义了与 Kubernetes API 交互的接口。
+// 它封装了 controller-runtime 的 client.Client 和 client-go 的核心客户端功能。
 type KubernetesClient interface {
-	client.Client // 嵌入 controller-runtime 的 Client 接口
-	// ClientSet 提供访问标准 client-go Clientset 的方法，用于 controller-runtime 不直接支持的操作 (如 GetLogs)
+	// 嵌入 controller-runtime 的 Client 接口，提供核心的 CRUD 等面向对象的操作。
+	client.Client
+	// ClientSet 提供访问标准 client-go Clientset 的方法。
+	// 这对于执行 controller-runtime 不直接支持的操作（例如获取 Pod 日志）非常有用。
 	ClientSet() kubernetes.Interface
-	// GetCurrentNamespace 获取当前kubeconfig中配置的命名空间
+	// GetCurrentNamespace 获取当前 kubeconfig 文件中配置的默认命名空间。
+	// 如果使用的是集群内配置或无法确定命名空间，则可能返回错误。
 	GetCurrentNamespace() (string, error)
-	// GetDynamicClient 提供访问 client-go dynamic 客户端的方法，用于动态资源 (如 CustomResourceDefinition)
+	// GetDynamicClient 提供访问 client-go 动态客户端的方法。
+	// 动态客户端允许操作任意 Kubernetes 资源，包括 CRD，而无需编译时类型信息。
 	GetDynamicClient() dynamic.Interface
-	// GetDiscoveryClient 提供访问 client-go discovery 客户端的方法，用于发现 API 资源
+	// GetDiscoveryClient 提供访问 client-go discovery 客户端的方法。
+	// Discovery 客户端用于发现 Kubernetes API Server 支持的 API 组、版本和资源。
 	GetDiscoveryClient() discovery.DiscoveryInterface
+	// GetConfig 获取用于创建此客户端的原始 clientcmd 配置。
+	// 这对于需要访问底层配置细节（如上下文、集群信息等）的场景很有用。
+	GetConfig() clientcmd.ClientConfig
 }
 
-// k8sClientImpl 基于controller-runtime/client的Kubernetes客户端实现 (增加 clientset 字段)
+// k8sClientImpl 是 KubernetesClient 接口的具体实现。
+// 它聚合了 controller-runtime client 和 client-go 的各种客户端实例。
 type k8sClientImpl struct {
-	client          client.Client                // controller-runtime 客户端
-	clientset       kubernetes.Interface         // 标准 client-go Clientset
-	dynamicClient   dynamic.Interface            // 用于动态资源的 client-go 客户端
-	discoveryClient discovery.DiscoveryInterface // 用于发现 API 资源的 client-go 客户端
-	rawConfig       clientcmd.ClientConfig       // 保存原始kubeconfig，用于获取当前命名空间
+	// controller-runtime 客户端，用于通用的对象操作。
+	client client.Client
+	// 标准的 client-go Clientset，用于特定或底层操作。
+	clientset kubernetes.Interface
+	// 动态客户端，用于处理 CRD 或非结构化数据。
+	dynamicClient dynamic.Interface
+	// Discovery 客户端，用于 API 发现。
+	discoveryClient discovery.DiscoveryInterface
+	// 加载的原始 kubeconfig 配置信息。
+	rawConfig clientcmd.ClientConfig
 }
 
-// 确保k8sClientImpl实现了KubernetesClient接口
+// 编译时断言，确保 k8sClientImpl 实现了 KubernetesClient 接口。
 var _ KubernetesClient = &k8sClientImpl{}
 
-// 全局客户端实例 (保持不变)
+// defaultClient 是一个全局的 KubernetesClient 实例，通过 InitializeDefaultClient 初始化。
+// 使用 GetClient() 函数来安全地访问此实例。
 var defaultClient KubernetesClient
 
-// ClientSet 实现接口方法 (优化后)
-// 直接返回初始化时创建并存储的 clientset
+// ClientSet 返回初始化时创建并存储的 client-go Clientset。
+// 这是 KubernetesClient 接口的实现方法。
 func (k *k8sClientImpl) ClientSet() kubernetes.Interface {
-	// 注意：这里假设 k.clientset 在 NewClient 中已经被成功初始化
+	// 注意：此实现假设 k.clientset 在 NewClient 中已被成功初始化。
+	// 如果在 NewClient 中初始化失败，则 NewClient 会返回错误，不会创建 k8sClientImpl 实例。
 	if k.clientset == nil {
-		// 这种情况理论上不应该发生，如果在 NewClient 中正确初始化了
-		// 但可以加一个 panic 或返回错误，取决于你希望如何处理未初始化的情况
-		panic("kubernetes clientset accessed before initialization")
+		// 理论上不应发生此情况，因为 NewClient 会确保 clientset 被初始化或返回错误。
+		// 添加 panic 以在开发阶段捕捉意外状态。
+		panic("内部错误：kubernetes clientset 在 k8sClientImpl 实例中未被初始化")
 	}
 	return k.clientset
 }
 
-// --- controller-runtime client.Client 接口的实现 (通过嵌入 k.client 自动完成) ---
-// Create, Delete, Update, Get, List, Patch, DeleteAllOf, Status, Scheme, RESTMapper,
-// SubResource, GroupVersionKindFor, IsObjectNamespaced 这些方法都由嵌入的 k.client 提供
+// --- controller-runtime client.Client 接口方法的实现 (通过显式转发到嵌入的 k.client) ---
+// 下面的方法显式地将调用转发给嵌入的 k.client。
+// 虽然 Go 的嵌入会自动提供这些方法，但显式转发可以更清晰地表明意图，
+// 并且允许在未来添加额外的逻辑（例如日志记录、度量）。
 
-// Create (显式转发，或者完全依赖嵌入)
+// Create 调用嵌入的 controller-runtime 客户端的 Create 方法。
 func (k *k8sClientImpl) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	return k.client.Create(ctx, obj, opts...)
 }
 
-// Delete (显式转发，或者完全依赖嵌入)
+// Delete 调用嵌入的 controller-runtime 客户端的 Delete 方法。
 func (k *k8sClientImpl) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	return k.client.Delete(ctx, obj, opts...)
 }
 
-// Update (显式转发，或者完全依赖嵌入)
+// Update 调用嵌入的 controller-runtime 客户端的 Update 方法。
 func (k *k8sClientImpl) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	return k.client.Update(ctx, obj, opts...)
 }
 
-// Get (显式转发，或者完全依赖嵌入)
+// Get 调用嵌入的 controller-runtime 客户端的 Get 方法。
 func (k *k8sClientImpl) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	return k.client.Get(ctx, key, obj, opts...)
 }
 
-// List (显式转发，或者完全依赖嵌入)
+// List 调用嵌入的 controller-runtime 客户端的 List 方法。
 func (k *k8sClientImpl) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	return k.client.List(ctx, list, opts...)
 }
 
-// Patch (显式转发，或者完全依赖嵌入)
+// Patch 调用嵌入的 controller-runtime 客户端的 Patch 方法。
 func (k *k8sClientImpl) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	return k.client.Patch(ctx, obj, patch, opts...)
 }
 
-// DeleteAllOf (显式转发，或者完全依赖嵌入)
+// DeleteAllOf 调用嵌入的 controller-runtime 客户端的 DeleteAllOf 方法。
 func (k *k8sClientImpl) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	return k.client.DeleteAllOf(ctx, obj, opts...)
 }
 
-// Status (显式转发，或者完全依赖嵌入)
+// Status 返回一个用于更新对象状态子资源的 StatusWriter。
 func (k *k8sClientImpl) Status() client.StatusWriter {
 	return k.client.Status()
 }
 
-// Scheme (显式转发，或者完全依赖嵌入)
+// Scheme 返回与此客户端关联的 runtime.Scheme。
 func (k *k8sClientImpl) Scheme() *runtime.Scheme {
 	return k.client.Scheme()
 }
 
-// RESTMapper (显式转发，或者完全依赖嵌入)
+// RESTMapper 返回用于 GVK (GroupVersionKind) 和资源之间映射的 RESTMapper。
 func (k *k8sClientImpl) RESTMapper() meta.RESTMapper {
 	return k.client.RESTMapper()
 }
 
-// SubResource (显式转发，或者完全依赖嵌入)
+// SubResource 返回一个用于操作指定子资源的 SubResourceClient。
 func (k *k8sClientImpl) SubResource(subResource string) client.SubResourceClient {
 	return k.client.SubResource(subResource)
 }
 
-// GroupVersionKindFor (显式转发，或者完全依赖嵌入)
+// GroupVersionKindFor 尝试为给定的 runtime.Object 确定其 GroupVersionKind。
 func (k *k8sClientImpl) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
 	return k.client.GroupVersionKindFor(obj)
 }
 
-// IsObjectNamespaced (显式转发，或者完全依赖嵌入)
+// IsObjectNamespaced 检查给定的 runtime.Object 是否是命名空间作用域的资源。
 func (k *k8sClientImpl) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 	return k.client.IsObjectNamespaced(obj)
 }
 
-// GetCurrentNamespace 获取kubeconfig中配置的当前命名空间
+// GetCurrentNamespace 获取 kubeconfig 中配置的当前命名空间。
+// 这是 KubernetesClient 接口的实现方法。
 func (k *k8sClientImpl) GetCurrentNamespace() (string, error) {
-	// 如果没有rawConfig（例如，使用的是集群内配置），则返回空字符串
+	// 如果 k.rawConfig 为 nil (例如，使用集群内配置时)，则无法从 kubeconfig 文件获取命名空间。
 	if k.rawConfig == nil {
-		return "", fmt.Errorf("no kubeconfig available")
+		// 对于集群内配置，通常认为命名空间是 Pod 运行所在的命名空间，
+		// 但这需要通过 downward API 或其他方式获取，而不是通过 ClientConfig。
+		// 在这里返回错误表明无法从配置中确定命名空间。
+		return "", fmt.Errorf("kubeconfig is not available (possibly using in-cluster config)")
 	}
 
-	// 从rawConfig获取命名空间
+	// 尝试从原始 clientcmd 配置中获取命名空间。
+	// 第三个返回值 (bool) 表示命名空间是否在配置中被显式设置。
 	namespace, _, err := k.rawConfig.Namespace()
-	return namespace, err
+	if err != nil {
+		return "", fmt.Errorf("failed to get namespace from kubeconfig: %w", err)
+	}
+	// 如果 kubeconfig 中没有指定命名空间，默认通常是 "default"。
+	// Namespace() 方法会处理这种情况。
+	return namespace, nil
 }
 
-// NewClient 创建新的Kubernetes客户端 (优化后)
-// 同时初始化 controller-runtime client 和 client-go clientset
+// NewClient 创建并返回一个新的 KubernetesClient 实例。
+// 它会根据提供的配置加载 Kubernetes 配置，并初始化所有必需的客户端。
 func NewClient(appCfg *config.Config) (KubernetesClient, error) {
+	// 获取日志记录器实例
 	log := logger.GetLogger()
+	log.Info("Initializing Kubernetes client...")
 
-	// 1. 加载 REST 配置 (逻辑保持不变)
+	// 1. 加载 Kubernetes REST 配置
 	var restConfig *rest.Config
 	var err error
+	// 创建默认的 kubeconfig 加载规则
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+
+	// 优先使用 appCfg.Kubeconfig 指定的路径
 	if appCfg.Kubeconfig != "" {
-		log.Debug("Using specified kubeconfig", "path", appCfg.Kubeconfig)
+		log.Debug("Using specific kubeconfig path", "path", appCfg.Kubeconfig)
 		loadingRules.ExplicitPath = appCfg.Kubeconfig
 	} else {
-		// 检查 KUBECONFIG 环境变量
+		// 如果未指定路径，则遵循标准加载顺序：
+		// 1. KUBECONFIG 环境变量
 		kubeconfigEnv := os.Getenv("KUBECONFIG")
 		if kubeconfigEnv != "" {
 			log.Debug("Using KUBECONFIG environment variable", "path", kubeconfigEnv)
-			// clientcmd 会处理 : 分隔的路径列表
+			// loadingRules 会自动处理 KUBECONFIG
 		} else {
-			// 默认路径 ~/.kube/config
+			// 2. 默认路径 ~/.kube/config
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
-				log.Warn("Could not get user home directory, defaulting might fail", "error", err)
-				// 继续尝试，也许在容器内或有其他方式配置
+				log.Warn("Could not get user home directory, defaulting kubeconfig path might fail", "error", err)
+				// 即使无法获取主目录，仍然尝试加载，clientcmd 可能会处理其他情况
 			} else {
-				log.Debug("Using default kubeconfig path", "path", filepath.Join(homeDir, ".kube", "config"))
+				defaultPath := filepath.Join(homeDir, ".kube", "config")
+				log.Debug("Using default kubeconfig path", "path", defaultPath)
+				// loadingRules 会自动检查默认路径
 			}
 		}
-		// loadingRules 将自动处理环境变量和默认路径
 	}
-	// 从加载规则和空覆盖创建配置
+
+	// 创建 clientcmd 配置对象，它会根据加载规则和覆盖项延迟加载配置
+	// 使用空的覆盖项 &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+
+	// 从 clientcmd 配置对象获取 REST 配置
 	restConfig, err = kubeConfig.ClientConfig()
 
-	// 保存kubeConfig，以便之后GetCurrentNamespace使用
+	// 保存加载的原始 clientcmd 配置，即使之后使用集群内配置，这个也可能包含上下文信息
+	// 如果 ClientConfig() 成功，则保存 kubeConfig
 	var rawConfig clientcmd.ClientConfig
 	if err == nil {
 		rawConfig = kubeConfig
+	} else {
+		rawConfig = nil // 明确设为 nil，如果加载失败
 	}
 
-	// 如果加载外部配置失败，尝试集群内配置
+	// 如果从外部文件加载配置失败，尝试使用集群内配置 (适用于在 Kubernetes Pod 中运行的场景)
 	if err != nil {
-		log.Warn("Failed to load kubeconfig, trying in-cluster config", "error", err)
+		log.Warn("Failed to load kubeconfig from file/env, attempting in-cluster config", "error", err)
 		restConfig, err = rest.InClusterConfig()
 		if err != nil {
-			// 如果两种方式都失败，返回错误
-			return nil, fmt.Errorf("could not configure Kubernetes client: %w", err)
+			// 如果两种方式都失败，则无法连接到集群，返回错误
+			return nil, fmt.Errorf("could not configure Kubernetes client: failed to load both out-of-cluster and in-cluster config: %w", err)
 		}
-		log.Debug("Using in-cluster config")
+		log.Debug("Successfully loaded in-cluster config")
+		// 使用集群内配置时，rawConfig 仍然是 nil
 	} else {
-		log.Debug("Using out-of-cluster config")
+		log.Debug("Successfully loaded out-of-cluster config")
 	}
 
-	// 2. 创建 Scheme (逻辑保持不变)
+	// 2. 创建 runtime.Scheme 用于类型注册
 	scheme := runtime.NewScheme()
+	// 将 Kubernetes 内建类型（如 Pod, Service 等）添加到 Scheme
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		return nil, fmt.Errorf("failed to add client-go scheme: %w", err)
 	}
-	// 添加自定义资源定义 (如果需要)
+	// TODO: 在这里可以添加应用程序自定义资源 (CRD) 的类型到 Scheme
+	// 例如: import mycrdscheme "my/api/v1"
+	//       mycrdscheme.AddToScheme(scheme)
+
+	// 调整客户端的 QPS (每秒查询数) 和 Burst (峰值并发数)，以控制请求速率
+	// 增加这些值可以提高吞吐量，但需注意 API Server 的承受能力
 	restConfig.QPS = 500
 	restConfig.Burst = 1000
+	log.Debug("Set client QPS and Burst", "qps", restConfig.QPS, "burst", restConfig.Burst)
+
 	// 3. 创建 controller-runtime Client
+	// 这个客户端提供了更高级别的、面向对象的 API
 	runtimeClient, err := client.New(restConfig, client.Options{
 		Scheme: scheme,
-		// 可以添加 MapperProvider 等其他选项
+		// MapperProvider: client.NewLazyRESTMapperLoader(restConfig), // 可以考虑使用 Lazy Mapper
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create controller-runtime client: %w", err)
 	}
-	log.Debug("Controller-runtime client created")
+	log.Debug("Controller-runtime client created successfully")
 
 	// 4. 创建 client-go Clientset
+	// 这是标准的 Kubernetes Go 客户端，提供了访问各种 API 组的接口
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		// 如果 controller-runtime client 创建成功，但 clientset 创建失败，
-		// 可能需要决定是否回滚或只返回部分功能的客户端。
-		// 这里我们选择返回错误。
+		// 最好是返回错误，因为客户端功能不完整。
 		return nil, fmt.Errorf("could not create kubernetes clientset: %w", err)
 	}
-	log.Debug("Kubernetes clientset created")
-	// 5. 创建 discoveryClient 和 dynamicClient
+	log.Debug("Kubernetes clientset created successfully")
+
+	// 5. 创建 DiscoveryClient 和 DynamicClient
+	// DiscoveryClient 用于发现 API 资源
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create discovery client: %w", err)
 	}
+	log.Debug("Discovery client created successfully")
+	// DynamicClient 用于操作非结构化数据（例如 CRD）
 	dynamicClient, err := dynamic.NewForConfig(restConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create dynamic client: %w", err)
 	}
+	log.Debug("Dynamic client created successfully")
 
-	// 6. 返回包含客户端的实现
+	// 6. 创建并返回 k8sClientImpl 实例
 	impl := &k8sClientImpl{
 		client:          runtimeClient,
 		clientset:       clientset,
-		rawConfig:       rawConfig,
+		rawConfig:       rawConfig, // 注意这里保存的是 ClientConfig 接口，可能是 nil
 		discoveryClient: discoveryClient,
 		dynamicClient:   dynamicClient,
 	}
@@ -244,25 +301,47 @@ func NewClient(appCfg *config.Config) (KubernetesClient, error) {
 	return impl, nil
 }
 
-// InitializeDefaultClient 初始化默认客户端 (逻辑保持不变)
+// InitializeDefaultClient 使用提供的配置初始化全局默认客户端实例。
+// 这个函数应该在应用程序启动时调用一次。
+// 返回的错误表示初始化过程中是否发生问题。
 func InitializeDefaultClient(cfg *config.Config) error {
 	var err error
+	// 调用 NewClient 创建新的客户端实例
 	defaultClient, err = NewClient(cfg)
-	return err
+	if err != nil {
+		// 如果创建失败，返回错误
+		return fmt.Errorf("failed to initialize default Kubernetes client: %w", err)
+	}
+	// 如果成功，全局 defaultClient 变量已被设置
+	return nil
 }
 
-// GetClient 获取默认客户端实例 (逻辑保持不变)
+// GetClient 返回全局默认的 KubernetesClient 实例。
+// 在调用此函数之前，必须先成功调用 InitializeDefaultClient。
+// 如果 defaultClient 尚未初始化，此函数会触发 panic。
 func GetClient() KubernetesClient {
-	// 考虑增加一个检查，如果 defaultClient 是 nil，则 panic 或返回错误
+	// 添加检查确保 defaultClient 已经被初始化
 	if defaultClient == nil {
-		panic("Default Kubernetes client accessed before initialization. Ensure InitializeDefaultClient() is called.")
+		// 触发 panic，强制要求开发者在使用前必须先初始化
+		panic("Fatal Error: Default Kubernetes client accessed before initialization. Ensure InitializeDefaultClient() is called successfully at application startup.")
 	}
 	return defaultClient
 }
+
+// GetDynamicClient 返回 k8sClientImpl 实例中的动态客户端。
+// 这是 KubernetesClient 接口的实现方法。
 func (k *k8sClientImpl) GetDynamicClient() dynamic.Interface {
 	return k.dynamicClient
 }
 
+// GetDiscoveryClient 返回 k8sClientImpl 实例中的 Discovery 客户端。
+// 这是 KubernetesClient 接口的实现方法。
 func (k *k8sClientImpl) GetDiscoveryClient() discovery.DiscoveryInterface {
 	return k.discoveryClient
+}
+
+// GetConfig 返回 k8sClientImpl 实例中存储的原始 clientcmd 配置。
+// 这是 KubernetesClient 接口的实现方法。
+func (k *k8sClientImpl) GetConfig() clientcmd.ClientConfig {
+	return k.rawConfig
 }
