@@ -156,3 +156,10 @@ Each API group supports the following operations:
 - **Get Pod logs**: Retrieve logs from specific Pod containers
 - **List namespaces**: View all available namespaces in the cluster
 - **List nodes**: View all nodes and their status in the cluster
+
+### 📊 Log Analysis Features
+
+- **Error Pattern Recognition**: Identifies common error patterns and frequencies
+- **Time-based Distribution Analysis**: Analyzes error occurrence patterns over time
+- **HTTP Status Code Tracking**: Monitors and categorizes HTTP response codes
+- **Performance Metrics**: Tracks response times and resource usage statistics
