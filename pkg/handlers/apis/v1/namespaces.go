@@ -2,8 +2,9 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -12,6 +13,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 )
 
 // 定义常量
@@ -58,29 +60,51 @@ func (h *NamespaceHandlerImpl) Register(server *server.MCPServer) {
 	), h.ListNamespaces)
 }
 
-// ListNamespaces 实现接口方法
+// ListNamespaces 列出所有命名空间
 func (h *NamespaceHandlerImpl) ListNamespaces(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	h.Log.Info("Listing namespaces")
 
-	// 创建命名空间列表
-	namespaces := &corev1.NamespaceList{}
-
 	// 获取所有命名空间
+	namespaces := &corev1.NamespaceList{}
 	err := h.Client.List(ctx, namespaces)
 	if err != nil {
 		h.Log.Error("Failed to list namespaces", "error", err)
 		return nil, fmt.Errorf("failed to list namespaces: %v", err)
 	}
 
-	// 构建响应
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Found %d namespaces:\n\n", len(namespaces.Items)))
+	// 构建命名空间信息列表
+	namespaceInfos := make([]models.NamespaceInfo, 0, len(namespaces.Items))
 
 	for _, ns := range namespaces.Items {
-		result.WriteString(fmt.Sprintf("- %s (Status: %s)\n", ns.Name, ns.Status.Phase))
+		// 获取命名空间状态
+		status := string(ns.Status.Phase)
+
+		// 构建命名空间信息
+		nsInfo := models.NamespaceInfo{
+			Name:         ns.Name,
+			Status:       status,
+			Labels:       ns.Labels,
+			Annotations:  ns.Annotations,
+			CreationTime: ns.CreationTimestamp.Time,
+		}
+
+		namespaceInfos = append(namespaceInfos, nsInfo)
+	}
+
+	// 创建完整响应
+	response := models.NamespaceListResponse{
+		Count:       len(namespaceInfos),
+		Namespaces:  namespaceInfos,
+		RetrievedAt: time.Now(),
+	}
+
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
 	}
 
 	h.Log.Info("Namespaces listed successfully", "count", len(namespaces.Items))
@@ -89,7 +113,7 @@ func (h *NamespaceHandlerImpl) ListNamespaces(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: result.String(),
+				Text: string(jsonData),
 			},
 		},
 	}, nil

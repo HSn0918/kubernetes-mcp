@@ -2,8 +2,10 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -12,6 +14,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 )
 
 // 定义常量
@@ -75,9 +78,8 @@ func (h *NodeHandlerImpl) ListNodes(
 		return nil, fmt.Errorf("failed to list nodes: %v", err)
 	}
 
-	// 构建响应
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Found %d nodes:\n\n", len(nodes.Items)))
+	// 构建JSON响应
+	nodeInfos := make([]models.NodeInfo, 0, len(nodes.Items))
 
 	for _, node := range nodes.Items {
 		// 获取节点状态
@@ -109,20 +111,7 @@ func (h *NodeHandlerImpl) ListNodes(
 			}
 		}
 
-		// 添加节点信息到结果中
-		result.WriteString(fmt.Sprintf("- %s (Status: %s)\n", node.Name, status))
-		result.WriteString(fmt.Sprintf("  Kubelet Version: %s\n", kubeletVersion))
-		result.WriteString(fmt.Sprintf("  OS: %s, Kernel: %s, Arch: %s\n", osImage, kernelVersion, architecture))
-
-		if internalIP != "" {
-			result.WriteString(fmt.Sprintf("  Internal IP: %s\n", internalIP))
-		}
-
-		if externalIP != "" {
-			result.WriteString(fmt.Sprintf("  External IP: %s\n", externalIP))
-		}
-
-		// 添加角色标签（如果有）
+		// 获取节点角色
 		roles := []string{}
 		for label := range node.Labels {
 			if label == "node-role.kubernetes.io/master" || label == "node-role.kubernetes.io/control-plane" {
@@ -133,11 +122,54 @@ func (h *NodeHandlerImpl) ListNodes(
 			}
 		}
 
-		if len(roles) > 0 {
-			result.WriteString(fmt.Sprintf("  Roles: %s\n", strings.Join(roles, ", ")))
+		// 获取节点污点
+		taints := make([]models.Taint, 0, len(node.Spec.Taints))
+		for _, taint := range node.Spec.Taints {
+			taints = append(taints, models.Taint{
+				Key:    taint.Key,
+				Value:  taint.Value,
+				Effect: string(taint.Effect),
+			})
 		}
 
-		result.WriteString("\n")
+		// 获取可分配资源
+		allocatableCPU := node.Status.Allocatable.Cpu().String()
+		allocatableMemory := node.Status.Allocatable.Memory().String()
+		allocatablePods := node.Status.Allocatable.Pods().String()
+
+		// 构建节点信息
+		nodeInfo := models.NodeInfo{
+			Name:              node.Name,
+			Status:            status,
+			KubeletVersion:    kubeletVersion,
+			OSImage:           osImage,
+			KernelVersion:     kernelVersion,
+			Architecture:      architecture,
+			InternalIP:        internalIP,
+			ExternalIP:        externalIP,
+			Roles:             roles,
+			Labels:            node.Labels,
+			Taints:            taints,
+			AllocatableCPU:    allocatableCPU,
+			AllocatableMemory: allocatableMemory,
+			AllocatablePods:   allocatablePods,
+			CreationTime:      node.CreationTimestamp.Time,
+		}
+
+		nodeInfos = append(nodeInfos, nodeInfo)
+	}
+
+	// 创建完整响应
+	response := models.NodeListResponse{
+		Count:       len(nodeInfos),
+		Nodes:       nodeInfos,
+		RetrievedAt: time.Now(),
+	}
+
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("JSON序列化失败: %w", err)
 	}
 
 	h.Log.Info("Nodes listed successfully", "count", len(nodes.Items))
@@ -146,7 +178,7 @@ func (h *NodeHandlerImpl) ListNodes(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: result.String(),
+				Text: string(jsonData),
 			},
 		},
 	}, nil
