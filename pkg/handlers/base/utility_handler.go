@@ -15,6 +15,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -192,7 +193,7 @@ func (h *UtilityHandler) Handle(ctx context.Context, request mcp.CallToolRequest
 	case GET_EVENTS:
 		return h.GetEvents(ctx, request)
 	default:
-		return nil, fmt.Errorf("unknown utility method: %s", request.Method)
+		return utils.NewErrorToolResult(fmt.Sprintf("unknown utility method: %s", request.Method)), nil
 	}
 }
 
@@ -211,7 +212,7 @@ func (h *UtilityHandler) GetClusterInfo(
 	versionInfo, err := h.Client.GetDiscoveryClient().ServerVersion()
 	if err != nil {
 		h.Log.Error("Failed to get server version", "error", err)
-		return nil, fmt.Errorf("failed to get server version: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to get server version: %v", err)), nil
 	}
 
 	// 添加版本信息
@@ -265,7 +266,7 @@ func (h *UtilityHandler) GetAPIResources(
 			// 处理部分发现错误，继续使用已获取的资源
 			if !discovery.IsGroupDiscoveryFailedError(err) {
 				h.Log.Error("Failed to get API resources", "error", err)
-				return nil, fmt.Errorf("failed to get API resources: %w", err)
+				return utils.NewErrorToolResult(fmt.Sprintf("failed to get API resources: %v", err)), nil
 			}
 			h.Log.Warn("Partial API discovery error", "error", err)
 		}
@@ -274,7 +275,7 @@ func (h *UtilityHandler) GetAPIResources(
 		apiGroup, err := h.Client.GetDiscoveryClient().ServerResourcesForGroupVersion(group)
 		if err != nil {
 			h.Log.Error("Failed to get API resources for group", "group", group, "error", err)
-			return nil, fmt.Errorf("failed to get API resources for group %s: %w", group, err)
+			return utils.NewErrorToolResult(fmt.Sprintf("failed to get API resources for group %s: %v", group, err)), nil
 		}
 		resourcesList = []*metav1.APIResourceList{apiGroup}
 	}

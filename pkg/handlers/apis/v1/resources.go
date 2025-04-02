@@ -199,7 +199,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	// Type assertion with proper error handling
 	nameVal, ok := arguments["name"]
 	if !ok || nameVal == nil {
-		return nil, fmt.Errorf("Pod name is required")
+		return utils.NewErrorToolResult("Pod name is required"), nil
 	}
 	name := nameVal.(string)
 
@@ -253,9 +253,9 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	if err != nil {
 		reqLogger.Error("Failed to get pod logs stream", "error", err)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("Pod '%s' not found in namespace '%s'", name, namespace)
+			return utils.NewErrorToolResult(fmt.Sprintf("Pod '%s' not found in namespace '%s'", name, namespace)), nil
 		}
-		return nil, fmt.Errorf("failed to stream pod logs for pod %s: %w", name, err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to stream pod logs for pod %s: %v", name, err)), nil
 	}
 	defer podLogsStream.Close()
 
@@ -327,7 +327,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	// 序列化为JSON
 	jsonData, err := json.MarshalIndent(logResponse, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
 	reqLogger.Info("Pod logs retrieved successfully",
@@ -356,7 +356,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	// Type assertion with proper error handling
 	nameVal, ok := arguments["name"]
 	if !ok || nameVal == nil {
-		return nil, fmt.Errorf("Pod name is required")
+		return utils.NewErrorToolResult("Pod name is required"), nil
 	}
 	name := nameVal.(string)
 
@@ -412,9 +412,9 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	if err != nil {
 		reqLogger.Error("Failed to get pod logs stream for analysis", "error", err)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("Pod '%s' not found in namespace '%s'", name, namespace)
+			return utils.NewErrorToolResult(fmt.Sprintf("Pod '%s' not found in namespace '%s'", name, namespace)), nil
 		}
-		return nil, fmt.Errorf("failed to stream pod logs for analysis, pod %s: %w", name, err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to stream pod logs for analysis, pod %s: %v", name, err)), nil
 	}
 	defer podLogsStream.Close()
 
@@ -455,7 +455,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	// 序列化为JSON
 	jsonData, err := json.MarshalIndent(analysisResponse, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
 	reqLogger.Info("Pod logs analysis completed", "linesAnalyzed", actualLineCount)

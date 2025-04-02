@@ -215,7 +215,7 @@ func (h *ResourceHandler) ListResources(
 				"labelSelector", labelSelector,
 				"error", err,
 			)
-			return nil, fmt.Errorf("failed to parse label selector: %v", err)
+			return utils.NewErrorToolResult(fmt.Sprintf("failed to parse label selector: %v", err)), nil
 		}
 
 		// 为列表选项设置标签选择器
@@ -231,7 +231,7 @@ func (h *ResourceHandler) ListResources(
 			"labelSelector", labelSelector,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to list resources: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to list resources: %v", err)), nil
 	}
 
 	// 构建响应
@@ -308,9 +308,9 @@ func (h *ResourceHandler) GetResource(
 			"error", err,
 		)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
 		}
-		return nil, fmt.Errorf("failed to get resource: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to get resource: %v", err)), nil
 	}
 
 	// 转换为YAML
@@ -321,7 +321,7 @@ func (h *ResourceHandler) GetResource(
 			"name", name,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to marshal to YAML: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to marshal to YAML: %v", err)), nil
 	}
 
 	h.Log.Info("Resource retrieved successfully",
@@ -379,9 +379,9 @@ func (h *ResourceHandler) DescribeResource(
 			"error", err,
 		)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
 		}
-		return nil, fmt.Errorf("failed to describe resource: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to describe resource: %v", err)), nil
 	}
 
 	// 构建资源描述
@@ -395,7 +395,7 @@ func (h *ResourceHandler) DescribeResource(
 			"name", name,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to marshal to JSON: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to marshal to JSON: %v", err)), nil
 	}
 
 	h.Log.Info("Resource described successfully",
@@ -429,12 +429,12 @@ func (h *ResourceHandler) CreateResource(
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
 		h.Log.Error("Failed to parse YAML", "error", err)
-		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
 
 	// 验证资源组
 	if !h.validateResourceGroup(obj) {
-		return nil, fmt.Errorf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)
+		return utils.NewErrorToolResult(fmt.Sprintf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)), nil
 	}
 
 	// 如果命名空间为空，使用default或kubeconfig中的
@@ -459,7 +459,7 @@ func (h *ResourceHandler) CreateResource(
 			"namespace", obj.GetNamespace(),
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to create resource: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to create resource: %v", err)), nil
 	}
 
 	h.Log.Info("Resource created successfully",
@@ -494,12 +494,12 @@ func (h *ResourceHandler) UpdateResource(
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
 		h.Log.Error("Failed to parse YAML", "error", err)
-		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
 
 	// 验证资源组
 	if !h.validateResourceGroup(obj) {
-		return nil, fmt.Errorf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)
+		return utils.NewErrorToolResult(fmt.Sprintf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)), nil
 	}
 
 	// 如果命名空间为空，使用default或kubeconfig中的
@@ -524,7 +524,7 @@ func (h *ResourceHandler) UpdateResource(
 			"namespace", obj.GetNamespace(),
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to update resource: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to update resource: %v", err)), nil
 	}
 
 	h.Log.Info("Resource updated successfully",
@@ -585,9 +585,9 @@ func (h *ResourceHandler) DeleteResource(
 			"error", err,
 		)
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)
+			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
 		}
-		return nil, fmt.Errorf("failed to delete resource: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to delete resource: %v", err)), nil
 	}
 
 	h.Log.Info("Resource deleted successfully",
@@ -660,7 +660,7 @@ func (h *ResourceHandler) Handle(ctx context.Context, request mcp.CallToolReques
 	case fmt.Sprintf("DELETE_%s_RESOURCE", prefix):
 		return h.DeleteResource(ctx, request)
 	default:
-		return nil, fmt.Errorf("unknown %s resource method: %s", strings.ToLower(prefix), request.Method)
+		return utils.NewErrorToolResult(fmt.Sprintf("unknown %s resource method: %s", strings.ToLower(prefix), request.Method)), nil
 	}
 }
 

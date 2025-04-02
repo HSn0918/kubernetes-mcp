@@ -14,6 +14,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
 // 定义常量
@@ -43,7 +44,7 @@ func (h *NamespaceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolR
 	case LIST_NAMESPACES:
 		return h.ListNamespaces(ctx, request)
 	default:
-		return nil, fmt.Errorf("unknown namespace method: %s", request.Method)
+		return utils.NewErrorToolResult(fmt.Sprintf("unknown namespace method: %s", request.Method)), nil
 	}
 }
 
@@ -72,7 +73,7 @@ func (h *NamespaceHandlerImpl) ListNamespaces(
 	err := h.Client.List(ctx, namespaces)
 	if err != nil {
 		h.Log.Error("Failed to list namespaces", "error", err)
-		return nil, fmt.Errorf("failed to list namespaces: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to list namespaces: %v", err)), nil
 	}
 
 	// 构建命名空间信息列表
@@ -104,7 +105,7 @@ func (h *NamespaceHandlerImpl) ListNamespaces(
 	// 序列化为JSON
 	jsonData, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
 	h.Log.Info("Namespaces listed successfully", "count", len(namespaces.Items))

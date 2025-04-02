@@ -3,8 +3,23 @@ package utils
 import (
 	"strings"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+// NewErrorToolResult 创建一个表示错误的CallToolResult
+// 这将IsError设置为true，并将提供的错误消息添加到Content中，而不是返回error对象
+func NewErrorToolResult(errMsg string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: errMsg,
+			},
+		},
+		IsError: true,
+	}
+}
 
 // ParseGVK 解析API版本和Kind并返回GroupVersionKind
 func ParseGVK(apiVersion string, kind string) schema.GroupVersionKind {

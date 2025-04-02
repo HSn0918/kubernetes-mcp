@@ -51,7 +51,7 @@ func (h *MetricsHandler) Handle(ctx context.Context, request mcp.CallToolRequest
 	case GET_TOP_CONSUMERS:
 		return h.GetTopConsumers(ctx, request)
 	default:
-		return nil, fmt.Errorf("unknown metrics method: %s", request.Method)
+		return utils.NewErrorToolResult(fmt.Sprintf("unknown metrics method: %s", request.Method)), nil
 	}
 }
 
@@ -201,7 +201,7 @@ func (h *MetricsHandler) GetNodeMetrics(
 	if nodeName != "" {
 		nodeMetric, err := utils.GetNodeMetric(ctx, h.Client, nodeName)
 		if err != nil {
-			return nil, err
+			return utils.NewErrorToolResult(fmt.Sprintf("Failed to get node metric: %v", err)), nil
 		}
 
 		// Create NodeResponse object
@@ -219,7 +219,7 @@ func (h *MetricsHandler) GetNodeMetrics(
 
 		jsonData, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return nil, fmt.Errorf("JSON formatting failed: %w", err)
+			return utils.NewErrorToolResult(fmt.Sprintf("JSON formatting failed: %v", err)), nil
 		}
 
 		return &mcp.CallToolResult{
@@ -253,7 +253,7 @@ func (h *MetricsHandler) GetNodeMetrics(
 	)
 
 	if err != nil {
-		return nil, err
+		return utils.NewErrorToolResult(fmt.Sprintf("Failed to get nodes metrics: %v", err)), nil
 	}
 
 	// Create NodesListResponse object
@@ -279,7 +279,7 @@ func (h *MetricsHandler) GetNodeMetrics(
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON formatting failed: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON formatting failed: %v", err)), nil
 	}
 
 	return &mcp.CallToolResult{
@@ -337,7 +337,7 @@ func (h *MetricsHandler) GetPodMetrics(
 	// Get Pod metrics using functional options pattern
 	podMetrics, err := utils.GetPodsMetrics(ctx, h.Client, namespace, options...)
 	if err != nil {
-		return nil, err
+		return utils.NewErrorToolResult(fmt.Sprintf("Failed to get pod metrics: %v", err)), nil
 	}
 
 	// Create PodsListResponse object
@@ -377,7 +377,7 @@ func (h *MetricsHandler) GetPodMetrics(
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON formatting failed: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON formatting failed: %v", err)), nil
 	}
 
 	return &mcp.CallToolResult{
@@ -431,7 +431,7 @@ func (h *MetricsHandler) GetResourceMetrics(
 	// Get cluster resource metrics using functional options pattern
 	metrics, err := utils.GetClusterResourceMetrics(ctx, h.Client, namespace, options...)
 	if err != nil {
-		return nil, err
+		return utils.NewErrorToolResult(fmt.Sprintf("Failed to get cluster resource metrics: %v", err)), nil
 	}
 
 	// Create ResourceMetricsResponse object
@@ -498,7 +498,7 @@ func (h *MetricsHandler) GetResourceMetrics(
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON formatting failed: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON formatting failed: %v", err)), nil
 	}
 
 	return &mcp.CallToolResult{
@@ -533,7 +533,7 @@ func (h *MetricsHandler) GetTopConsumers(
 
 	// Validate resource type
 	if resourceType != "cpu" && resourceType != "memory" {
-		return nil, fmt.Errorf("unsupported resource type: %s, supported types are: cpu, memory", resourceType)
+		return utils.NewErrorToolResult(fmt.Sprintf("unsupported resource type: %s, supported types are: cpu, memory", resourceType)), nil
 	}
 
 	// Select sort type based on resource type
@@ -568,7 +568,7 @@ func (h *MetricsHandler) GetTopConsumers(
 		options...,
 	)
 	if err != nil {
-		return nil, err
+		return utils.NewErrorToolResult(fmt.Sprintf("Failed to get pod metrics: %v", err)), nil
 	}
 
 	// Create TopConsumersListResponse object
@@ -597,7 +597,7 @@ func (h *MetricsHandler) GetTopConsumers(
 
 	jsonData, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON formatting failed: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON formatting failed: %v", err)), nil
 	}
 
 	return &mcp.CallToolResult{
@@ -618,7 +618,7 @@ func (h *MetricsHandler) ClusterResourceUsagePrompt(ctx context.Context, request
 	template := models.ClusterResourcePrompt
 	jsonData, err := json.MarshalIndent(template, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return nil, fmt.Errorf("JSON序列化失败: %v", err)
 	}
 
 	// 创建promptText并加入JSON内容
@@ -654,7 +654,7 @@ func (h *MetricsHandler) NodeResourceUsagePrompt(ctx context.Context, request mc
 	template := models.NodeResourcePrompt
 	jsonData, err := json.MarshalIndent(template, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return nil, fmt.Errorf("JSON序列化失败: %v", err)
 	}
 
 	// 创建promptText并加入JSON内容
@@ -690,7 +690,7 @@ func (h *MetricsHandler) PodResourceUsagePrompt(ctx context.Context, request mcp
 	template := models.PodResourcePrompt
 	jsonData, err := json.MarshalIndent(template, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return nil, fmt.Errorf("JSON序列化失败: %v", err)
 	}
 
 	// 创建promptText并加入JSON内容

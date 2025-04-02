@@ -15,6 +15,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
 // 定义常量
@@ -44,7 +45,7 @@ func (h *NodeHandlerImpl) Handle(ctx context.Context, request mcp.CallToolReques
 	case LIST_NODES:
 		return h.ListNodes(ctx, request)
 	default:
-		return nil, fmt.Errorf("unknown node method: %s", request.Method)
+		return utils.NewErrorToolResult(fmt.Sprintf("unknown node method: %s", request.Method)), nil
 	}
 }
 
@@ -75,7 +76,7 @@ func (h *NodeHandlerImpl) ListNodes(
 	err := h.Client.List(ctx, nodes)
 	if err != nil {
 		h.Log.Error("Failed to list nodes", "error", err)
-		return nil, fmt.Errorf("failed to list nodes: %v", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to list nodes: %v", err)), nil
 	}
 
 	// 构建JSON响应
@@ -169,7 +170,7 @@ func (h *NodeHandlerImpl) ListNodes(
 	// 序列化为JSON
 	jsonData, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("JSON序列化失败: %w", err)
+		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
 	h.Log.Info("Nodes listed successfully", "count", len(nodes.Items))
