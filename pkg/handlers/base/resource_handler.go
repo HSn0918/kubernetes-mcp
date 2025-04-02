@@ -612,13 +612,32 @@ func (h *ResourceHandler) validateResourceGroup(obj *unstructured.Unstructured) 
 	gvk := obj.GroupVersionKind()
 	switch h.Group {
 	case interfaces.CoreAPIGroup:
+		// 核心API组: pods, services, configmaps, secrets, namespaces等
 		return gvk.Group == ""
 	case interfaces.AppsAPIGroup:
+		// 应用API组: deployments, statefulsets, daemonsets等
 		return gvk.Group == "apps"
 	case interfaces.BatchAPIGroup:
+		// 批处理API组: jobs, cronjobs等
 		return gvk.Group == "batch"
 	case interfaces.NetworkingAPIGroup:
+		// 网络API组: ingresses, networkpolicies等
 		return gvk.Group == "networking.k8s.io"
+	case interfaces.StorageAPIGroup:
+		// 存储API组: storageclasses, volumeattachments等
+		return gvk.Group == "storage.k8s.io"
+	case interfaces.RbacAPIGroup:
+		// RBAC API组: roles, rolebindings, clusterroles, clusterrolebindings等
+		return gvk.Group == "rbac.authorization.k8s.io"
+	case interfaces.ApiextensionsAPIGroup:
+		// API扩展API组: customresourcedefinitions等
+		return gvk.Group == "apiextensions.k8s.io"
+	case interfaces.PolicyAPIGroup:
+		// 策略API组: podsecuritypolicies, poddisruptionbudgets等
+		return gvk.Group == "policy"
+	case interfaces.AutoscalingAPIGroup:
+		// 自动伸缩API组: horizontalpodautoscalers等
+		return gvk.Group == "autoscaling"
 	default:
 		return false
 	}

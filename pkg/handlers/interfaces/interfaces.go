@@ -28,13 +28,13 @@ const (
 	// BatchAPIGroup 代表批处理API组 (batch/v1)
 	BatchAPIGroup APIGroup = "batch"
 	// NetworkingAPIGroup 代表网络API组 (networking.k8s.io/v1)
-	NetworkingAPIGroup APIGroup = "networking"
+	NetworkingAPIGroup APIGroup = "networking.k8s.io"
 	// RbacAPIGroup 代表RBAC API组 (rbac.authorization.k8s.io/v1)
-	RbacAPIGroup APIGroup = "rbac"
+	RbacAPIGroup APIGroup = "rbac.authorization.k8s.io"
 	// StorageAPIGroup 代表存储API组 (storage.k8s.io/v1)
-	StorageAPIGroup APIGroup = "storage"
+	StorageAPIGroup APIGroup = "storage.k8s.io"
 	// ApiextensionsAPIGroup 代表API扩展API组 (apiextensions.k8s.io/v1)
-	ApiextensionsAPIGroup APIGroup = "apiextensions"
+	ApiextensionsAPIGroup APIGroup = "apiextensions.k8s.io"
 	// PolicyAPIGroup 代表策略API组 (policy/v1beta1)
 	PolicyAPIGroup APIGroup = "policy"
 	// AutoscalingAPIGroup 代表自动伸缩API组 (autoscaling/v1)

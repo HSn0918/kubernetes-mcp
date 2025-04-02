@@ -9,7 +9,6 @@ type Config struct {
 	// 日志配置
 	LogLevel  string
 	LogFormat string
-
 	// Kubernetes配置
 	Kubeconfig string
 }
