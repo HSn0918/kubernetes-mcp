@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
@@ -69,35 +68,9 @@ func (s *sseServer) GetServer() *server.MCPServer {
 func (s *sseServer) Start() error {
 	s.log.Info("Starting SSE server", "port", s.port, "allowOrigins", s.allowOrigins)
 
-	// 定义一个处理函数，用于代理到SSE服务器
-	// 实际上，我们将使用SSE服务器的Start方法，但是我们需要自己实现CORS
-	// 我们只能通过自定义http服务器来实现
+	// 服务器在CreateServer时已完全配置好，直接启动
 	addr := ":" + strconv.Itoa(s.port)
-
-	// 创建HTTP服务器
-	server := &http.Server{
-		Addr: addr,
-		// 使用middlewares包中的CreateCorsHandlerFunc创建CORS处理函数
-		Handler: middlewares.CreateCorsHandlerFunc(s.allowOrigins, http.DefaultServeMux),
-	}
-
-	// 在启动我们的服务器之前，确保SSE服务器已经注册了它的处理器到DefaultServeMux
-	// 我们在一个单独的goroutine中启动SSE服务器，但不真正使用它
-	// 这只是为了让它注册处理器
-	go func() {
-		s.sseServer.Start(addr)
-	}()
-
-	// 短暂暂停，确保SSE服务器已经注册处理器
-	time.Sleep(100 * time.Millisecond)
-
-	// 启动我们的HTTP服务器
-	s.log.Info("SSE server starting with CORS support", "address", addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %v", err)
-	}
-
-	return nil
+	return s.sseServer.Start(addr)
 }
 
 // Stop 实现接口方法
@@ -111,35 +84,64 @@ func (s *sseServer) Stop() error {
 func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) {
 	log := logger.GetLogger()
 
-	// 创建基本MCP服务器
-	mcpServer := server.NewMCPServer(
-		"Kubernetes-mcp",
-		"1.1.0",
+	// 准备服务器选项
+	serverOptions := []server.ServerOption{
 		server.WithResourceCapabilities(false, false),
 		server.WithPromptCapabilities(false),
 		server.WithLogging(),
-	)
+	}
 
-	// 设置钩子
-	setupHooks(mcpServer)
+	// 添加钩子选项
+	hooks := &server.Hooks{}
+	hooks.AddBeforeAny(func(id any, method mcp.MCPMethod, message any) {
+		log.Debug("Request received", "id", id, "method", method, "message", message)
+	})
+	hooks.AddOnSuccess(func(id any, method mcp.MCPMethod, message any, result any) {
+		log.Info("Request successful", "id", id, "method", method)
+	})
+	hooks.AddOnError(func(id any, method mcp.MCPMethod, message any, err error) {
+		log.Error("Request failed", "id", id, "method", method, "error", err)
+	})
+	serverOptions = append(serverOptions, server.WithHooks(hooks))
+
+	// 创建基本MCP服务器
+	mcpServer := server.NewMCPServer(
+		"Kubernetes-mcp",
+		"1.6.0",
+		serverOptions...,
+	)
 
 	// 注册所有处理程序
 	f.handlerProvider.RegisterAllHandlers(mcpServer)
 
 	// 根据传输方式创建服务器
 	if cfg.Transport == "sse" {
-		baseURL := "http://localhost:" + strconv.Itoa(cfg.Port)
+		// 配置服务器地址和基础URL
+		port := cfg.Port
+		addr := ":" + strconv.Itoa(port)
+		baseURL := "http://localhost:" + strconv.Itoa(port)
+
+		// 创建自定义的HTTP服务器，添加CORS支持
+		httpServer := &http.Server{
+			Addr: addr,
+			// 应用CORS中间件到默认ServeMux
+			Handler: middlewares.CreateCorsHandlerFunc(cfg.AllowOrigins, http.DefaultServeMux),
+		}
+
+		// 创建SSE服务器选项
+		sseOptions := []server.SSEOption{
+			server.WithBaseURL(baseURL),
+			server.WithHTTPServer(httpServer), // 使用配置了CORS的HTTP服务器
+		}
 
 		// 创建SSE服务器
-		mcpSseServer := server.NewSSEServer(
-			mcpServer,
-			server.WithBaseURL(baseURL),
-		)
+		mcpSseServer := server.NewSSEServer(mcpServer, sseOptions...)
 
+		// 返回配置好的服务器实例
 		return &sseServer{
 			mcpServer:    mcpServer,
 			sseServer:    mcpSseServer,
-			port:         cfg.Port,
+			port:         port,
 			log:          log,
 			allowOrigins: cfg.AllowOrigins,
 		}, nil
@@ -156,35 +158,4 @@ func NewServerFactory(handlerProvider interfaces.HandlerProvider) Factory {
 	return &serverFactoryImpl{
 		handlerProvider: handlerProvider,
 	}
-}
-
-// setupHooks 设置MCP服务器钩子
-func setupHooks(mcpServer *server.MCPServer) {
-	log := logger.GetLogger()
-	hooks := &server.Hooks{}
-
-	hooks.AddBeforeAny(func(id any, method mcp.MCPMethod, message any) {
-		log.Debug("Request received",
-			"id", id,
-			"method", method,
-			"message", message,
-		)
-	})
-
-	hooks.AddOnSuccess(func(id any, method mcp.MCPMethod, message any, result any) {
-		log.Info("Request successful",
-			"id", id,
-			"method", method,
-		)
-	})
-
-	hooks.AddOnError(func(id any, method mcp.MCPMethod, message any, err error) {
-		log.Error("Request failed",
-			"id", id,
-			"method", method,
-			"error", err,
-		)
-	})
-
-	server.WithHooks(hooks)(mcpServer)
 }

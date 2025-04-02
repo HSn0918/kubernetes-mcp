@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// 内部函数：应用CORS头
-func applyCorsHeaders(w http.ResponseWriter, r *http.Request, allowOrigins string) bool {
+// ApplyCorsHeaders 应用CORS头，公开函数可被其他包直接使用
+func ApplyCorsHeaders(w http.ResponseWriter, r *http.Request, allowOrigins string) bool {
 	// 设置CORS头
 	if allowOrigins == "*" {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -39,7 +39,7 @@ func applyCorsHeaders(w http.ResponseWriter, r *http.Request, allowOrigins strin
 func CorsMiddleware(allowOrigins string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// 应用CORS头，如果是OPTIONS请求则直接返回
-		if applyCorsHeaders(w, r, allowOrigins) {
+		if ApplyCorsHeaders(w, r, allowOrigins) {
 			return
 		}
 
@@ -53,7 +53,7 @@ func CorsMiddleware(allowOrigins string, next http.Handler) http.Handler {
 func CreateCorsHandlerFunc(allowOrigins string, defaultHandler http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 应用CORS头，如果是OPTIONS请求则直接返回
-		if applyCorsHeaders(w, r, allowOrigins) {
+		if ApplyCorsHeaders(w, r, allowOrigins) {
 			return
 		}
 		// 继续处理请求
