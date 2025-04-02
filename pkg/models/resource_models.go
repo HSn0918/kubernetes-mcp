@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+)
 
 // NodeInfo 定义节点信息结构
 type NodeInfo struct {
@@ -70,4 +74,62 @@ type ResourceListResponse struct {
 	Namespace   string         `json:"namespace,omitempty"`
 	Resources   []ResourceInfo `json:"resources"`
 	RetrievedAt time.Time      `json:"retrievedAt"`
+}
+
+// ResourceDescription 表示资源的详细描述信息
+type ResourceDescription struct {
+	// 基本信息
+	Name       string    `json:"name"`
+	Namespace  string    `json:"namespace"`
+	Kind       string    `json:"kind"`
+	APIVersion string    `json:"apiVersion"`
+	CreatedAt  time.Time `json:"createdAt"`
+
+	// 元数据
+	Labels          map[string]string `json:"labels,omitempty"`
+	Annotations     map[string]string `json:"annotations,omitempty"`
+	ResourceVersion string            `json:"resourceVersion"`
+	UID             string            `json:"uid"`
+
+	// 规格和状态
+	Spec   map[string]interface{} `json:"spec,omitempty"`
+	Status map[string]interface{} `json:"status,omitempty"`
+
+	// 检索时间
+	RetrievedAt time.Time `json:"retrievedAt"`
+}
+
+// NewResourceDescriptionFromUnstructured 从 unstructured.Unstructured 创建 ResourceDescription
+func NewResourceDescriptionFromUnstructured(obj *unstructured.Unstructured) ResourceDescription {
+	desc := ResourceDescription{
+		Name:            obj.GetName(),
+		Namespace:       obj.GetNamespace(),
+		Kind:            obj.GetKind(),
+		APIVersion:      obj.GetAPIVersion(),
+		CreatedAt:       obj.GetCreationTimestamp().Time,
+		ResourceVersion: obj.GetResourceVersion(),
+		UID:             string(obj.GetUID()),
+		RetrievedAt:     time.Now(),
+	}
+
+	// 添加标签
+	if labels := obj.GetLabels(); len(labels) > 0 {
+		desc.Labels = labels
+	}
+
+	// 添加注解
+	if annotations := obj.GetAnnotations(); len(annotations) > 0 {
+		desc.Annotations = annotations
+	}
+
+	// 获取spec和status
+	unstructContent := obj.UnstructuredContent()
+	if spec, found, _ := unstructured.NestedMap(unstructContent, "spec"); found && spec != nil {
+		desc.Spec = spec
+	}
+	if status, found, _ := unstructured.NestedMap(unstructContent, "status"); found && status != nil {
+		desc.Status = status
+	}
+
+	return desc
 }

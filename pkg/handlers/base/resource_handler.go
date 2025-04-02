@@ -2,6 +2,7 @@ package base
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
@@ -382,55 +384,18 @@ func (h *ResourceHandler) DescribeResource(
 		return nil, fmt.Errorf("failed to describe resource: %v", err)
 	}
 
-	// 构建详细描述信息
-	var result strings.Builder
+	// 构建资源描述
+	description := models.NewResourceDescriptionFromUnstructured(obj)
 
-	// 添加基本信息
-	result.WriteString(fmt.Sprintf("Name:         %s\n", obj.GetName()))
-	result.WriteString(fmt.Sprintf("Namespace:    %s\n", obj.GetNamespace()))
-	result.WriteString(fmt.Sprintf("Kind:         %s\n", obj.GetKind()))
-	result.WriteString(fmt.Sprintf("API Version:  %s\n", obj.GetAPIVersion()))
-	result.WriteString(fmt.Sprintf("Created At:   %s\n", obj.GetCreationTimestamp().String()))
-
-	// 添加标签
-	labels := obj.GetLabels()
-	if len(labels) > 0 {
-		result.WriteString("Labels:\n")
-		for k, v := range labels {
-			result.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
-		}
-	}
-
-	// 添加注解
-	annotations := obj.GetAnnotations()
-	if len(annotations) > 0 {
-		result.WriteString("Annotations:\n")
-		for k, v := range annotations {
-			result.WriteString(fmt.Sprintf("  %s: %s\n", k, v))
-		}
-	}
-
-	// 添加资源版本和UID
-	result.WriteString(fmt.Sprintf("Resource Version: %s\n", obj.GetResourceVersion()))
-	result.WriteString(fmt.Sprintf("UID:              %s\n", obj.GetUID()))
-
-	// 添加spec和status信息
-	unstructContent := obj.UnstructuredContent()
-
-	// 处理Spec部分
-	if spec, found, _ := unstructured.NestedMap(unstructContent, "spec"); found && spec != nil {
-		result.WriteString("\nSpec:\n")
-		for k, v := range spec {
-			result.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
-		}
-	}
-
-	// 处理Status部分
-	if status, found, _ := unstructured.NestedMap(unstructContent, "status"); found && status != nil {
-		result.WriteString("\nStatus:\n")
-		for k, v := range status {
-			result.WriteString(fmt.Sprintf("  %s: %v\n", k, v))
-		}
+	// 序列化为JSON
+	jsonData, err := json.MarshalIndent(description, "", "  ")
+	if err != nil {
+		h.Log.Error("Failed to marshal resource description to JSON",
+			"kind", kind,
+			"name", name,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to marshal to JSON: %v", err)
 	}
 
 	h.Log.Info("Resource described successfully",
@@ -443,7 +408,7 @@ func (h *ResourceHandler) DescribeResource(
 		Content: []mcp.Content{
 			mcp.TextContent{
 				Type: "text",
-				Text: result.String(),
+				Text: string(jsonData),
 			},
 		},
 	}, nil
