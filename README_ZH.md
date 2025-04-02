@@ -70,7 +70,7 @@
 git clone https://github.com/HSn0918/kubernetes-mcp.git
 cd kubernetes-mcp
 go build -o kubernetes-mcp ./cmd/kubernetes-mcp
-./kubernetes-mcp server --transport=sse --port 8080
+./kubernetes-mcp server transport sse --port 8080
 ```
 
 ### 🐳 Docker 构建
@@ -82,17 +82,20 @@ docker build -t kubernetes-mcp:latest \
   --build-arg COMMIT=$(git rev-parse HEAD) \
   --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") .
 
-# 使用 stdio 传输方式（默认）
-docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest
+# 使用 stdio 传输方式
+docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport stdio
 
 # 使用 SSE 传输方式
-docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server --transport=sse
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse
+
+# 使用 SSE 传输方式并自定义基础 URL
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse --base-url="http://your-host:8080"
 
 # 查看版本信息
 docker run kubernetes-mcp:latest version
 
 # 指定自定义 kubeconfig
-docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=/config
+docker run -v /path/to/config:/config kubernetes-mcp:latest server transport sse --kubeconfig=/config
 ```
 
 ## 🚀 使用方法
@@ -100,26 +103,54 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 ### 🔄 启动服务器
 
 ```shell
-# 使用标准 I/O（默认）
-./kubernetes-mcp server
+# 使用标准 I/O
+./kubernetes-mcp server transport stdio
 
 # 使用 SSE（服务器发送事件）
-./kubernetes-mcp server --transport sse --port 8080
+./kubernetes-mcp server transport sse --port 8080
+
+# 指定自定义基础 URL（客户端连接用）
+./kubernetes-mcp server transport sse --port 8080 --base-url="http://your-server-address:8080"
+
+# 设置 CORS 允许的源
+./kubernetes-mcp server transport sse --allow-origins="*"
 
 # 指定 Kubeconfig
-./kubernetes-mcp server --kubeconfig /path/to/your/kubeconfig
+./kubernetes-mcp server transport sse --kubeconfig /path/to/your/kubeconfig
 
 # 查看版本
 ./kubernetes-mcp version
 ```
 
+### ⚙️ 命令结构
+
+应用程序使用分层命令结构：
+
+```
+kubernetes-mcp
+├── server
+│   └── transport
+│       ├── sse
+│       │   ├── --port=8080
+│       │   ├── --health-port=8081
+│       │   ├── --base-url="http://example.com:8080"
+│       │   └── --allow-origins="*"
+│       └── stdio
+└── version
+```
+
 ### ⚙️ 配置选项
 
-- 🔧 **传输方式**：`--transport` (stdio/sse)
-- 🔧 **端口**：`--port` (默认 8080，SSE 模式)
-- 🔧 **配置文件**：`--kubeconfig` (路径)
-- 🔧 **日志级别**：`--log-level` (debug/info/warn/error)
-- 🔧 **日志格式**：`--log-format` (console/json)
+可用于任何命令的全局选项：
+- 🔧 **配置文件**：`--kubeconfig`（Kubernetes 配置文件路径）
+- 🔧 **日志级别**：`--log-level`（debug/info/warn/error）
+- 🔧 **日志格式**：`--log-format`（console/json）
+
+SSE 传输方式特有选项：
+- 🔧 **端口**：`--port`（默认 8080）
+- 🔧 **健康检查端口**：`--health-port`（默认 8081）
+- 🔧 **基础 URL**：`--base-url`（客户端连接服务器的 URL）
+- 🔧 **CORS 允许的源**：`--allow-origins`（逗号分隔列表或 "*" 表示允许所有）
 
 ## 🧩 高级功能
 

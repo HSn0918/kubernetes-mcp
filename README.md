@@ -82,17 +82,20 @@ docker build -t kubernetes-mcp:latest \
   --build-arg COMMIT=$(git rev-parse HEAD) \
   --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") .
 
-# Run with stdio transport (default)
-docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest
+# Run with stdio transport
+docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport stdio
 
 # Run with SSE transport
-docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server --transport=sse
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse
+
+# Run with SSE transport and custom base URL
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse --base-url="http://your-host:8080"
 
 # View version info
 docker run kubernetes-mcp:latest version
 
 # Specify custom kubeconfig
-docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=/config
+docker run -v /path/to/config:/config kubernetes-mcp:latest server transport sse --kubeconfig=/config
 ```
 
 ## 🚀 Usage
@@ -100,26 +103,54 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server --kubeconfig=
 ### 🔄 Starting the Server
 
 ```shell
-# Using standard I/O (default)
-./kubernetes-mcp server
+# Using standard I/O
+./kubernetes-mcp server transport stdio
 
 # Using SSE (Server-Sent Events)
-./kubernetes-mcp server --transport sse --port 8080
+./kubernetes-mcp server transport sse --port 8080
+
+# Specifying custom base URL for SSE connections
+./kubernetes-mcp server transport sse --port 8080 --base-url="http://your-server-address:8080"
+
+# Setting CORS allowed origins
+./kubernetes-mcp server transport sse --allow-origins="*"
 
 # Specifying Kubeconfig
-./kubernetes-mcp server --kubeconfig /path/to/your/kubeconfig
+./kubernetes-mcp server transport sse --kubeconfig /path/to/your/kubeconfig
 
 # View version
 ./kubernetes-mcp version
 ```
 
+### ⚙️ Command Structure
+
+The application uses a hierarchical command structure:
+
+```
+kubernetes-mcp
+├── server
+│   └── transport
+│       ├── sse
+│       │   ├── --port=8080
+│       │   ├── --health-port=8081
+│       │   ├── --base-url="http://example.com:8080"
+│       │   └── --allow-origins="*"
+│       └── stdio
+└── version
+```
+
 ### ⚙️ Configuration Options
 
-- 🔧 **Transport**: `--transport` (stdio/sse)
-- 🔧 **Port**: `--port` (default 8080, SSE mode)
-- 🔧 **Config file**: `--kubeconfig` (path)
+Global options that can be used with any command:
+- 🔧 **Config file**: `--kubeconfig` (path to Kubernetes configuration)
 - 🔧 **Log level**: `--log-level` (debug/info/warn/error)
 - 🔧 **Log format**: `--log-format` (console/json)
+
+SSE transport specific options:
+- 🔧 **Port**: `--port` (default 8080)
+- 🔧 **Health check port**: `--health-port` (default 8081)
+- 🔧 **Base URL**: `--base-url` (URL clients will use to connect to the server)
+- 🔧 **CORS allowed origins**: `--allow-origins` (comma-separated list or "*" for all)
 
 ## 🧩 Advanced Features
 
