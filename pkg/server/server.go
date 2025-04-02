@@ -119,12 +119,20 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 		// 配置服务器地址和基础URL
 		port := cfg.Port
 		addr := ":" + strconv.Itoa(port)
-		baseURL := "http://localhost:" + strconv.Itoa(port)
+
+		// 使用配置中的BaseURL，如果未设置则使用默认的localhost
+		baseURL := cfg.BaseURL
+		if baseURL == "" {
+			baseURL = "http://localhost:" + strconv.Itoa(port)
+			log.Info("BaseURL not set, using default", "baseURL", baseURL)
+		} else {
+			log.Info("Using configured BaseURL", "baseURL", baseURL)
+		}
 
 		// 创建自定义的HTTP服务器，添加CORS支持
 		httpServer := &http.Server{
 			Addr: addr,
-			// 应用CORS中间件到默认ServeMux
+			// 应用CORS中间件，允许所有源
 			Handler: middlewares.CreateCorsHandlerFunc(cfg.AllowOrigins, http.DefaultServeMux),
 		}
 
