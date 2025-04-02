@@ -2,11 +2,14 @@ package server
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
+	"github.com/hsn0918/kubernetes-mcp/pkg/middlewares"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -19,10 +22,11 @@ type stdioServer struct {
 
 // sseServer Server-Sent Events模式服务器
 type sseServer struct {
-	mcpServer *server.MCPServer
-	sseServer *server.SSEServer
-	port      int
-	log       logger.Logger
+	mcpServer    *server.MCPServer
+	sseServer    *server.SSEServer
+	port         int
+	log          logger.Logger
+	allowOrigins string
 }
 
 // serverFactoryImpl 服务器工厂实现
@@ -63,10 +67,36 @@ func (s *sseServer) GetServer() *server.MCPServer {
 
 // Start 实现接口方法
 func (s *sseServer) Start() error {
-	s.log.Info("Starting SSE server", "port", s.port)
-	if err := s.sseServer.Start(":" + strconv.Itoa(s.port)); err != nil {
+	s.log.Info("Starting SSE server", "port", s.port, "allowOrigins", s.allowOrigins)
+
+	// 定义一个处理函数，用于代理到SSE服务器
+	// 实际上，我们将使用SSE服务器的Start方法，但是我们需要自己实现CORS
+	// 我们只能通过自定义http服务器来实现
+	addr := ":" + strconv.Itoa(s.port)
+
+	// 创建HTTP服务器
+	server := &http.Server{
+		Addr: addr,
+		// 使用middlewares包中的CreateCorsHandlerFunc创建CORS处理函数
+		Handler: middlewares.CreateCorsHandlerFunc(s.allowOrigins, http.DefaultServeMux),
+	}
+
+	// 在启动我们的服务器之前，确保SSE服务器已经注册了它的处理器到DefaultServeMux
+	// 我们在一个单独的goroutine中启动SSE服务器，但不真正使用它
+	// 这只是为了让它注册处理器
+	go func() {
+		s.sseServer.Start(addr)
+	}()
+
+	// 短暂暂停，确保SSE服务器已经注册处理器
+	time.Sleep(100 * time.Millisecond)
+
+	// 启动我们的HTTP服务器
+	s.log.Info("SSE server starting with CORS support", "address", addr)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %v", err)
 	}
+
 	return nil
 }
 
@@ -98,15 +128,20 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 
 	// 根据传输方式创建服务器
 	if cfg.Transport == "sse" {
+		baseURL := "http://localhost:" + strconv.Itoa(cfg.Port)
+
+		// 创建SSE服务器
 		mcpSseServer := server.NewSSEServer(
 			mcpServer,
-			server.WithBaseURL("http://localhost:"+strconv.Itoa(cfg.Port)),
+			server.WithBaseURL(baseURL),
 		)
+
 		return &sseServer{
-			mcpServer: mcpServer,
-			sseServer: mcpSseServer,
-			port:      cfg.Port,
-			log:       log,
+			mcpServer:    mcpServer,
+			sseServer:    mcpSseServer,
+			port:         cfg.Port,
+			log:          log,
+			allowOrigins: cfg.AllowOrigins,
 		}, nil
 	} else {
 		return &stdioServer{

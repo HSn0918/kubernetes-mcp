@@ -6,6 +6,8 @@ type Config struct {
 	Transport  string
 	Port       int
 	HealthPort int
+	// CORS配置
+	AllowOrigins string
 	// 日志配置
 	LogLevel  string
 	LogFormat string
@@ -16,11 +18,12 @@ type Config struct {
 // NewDefaultConfig 创建默认配置
 func NewDefaultConfig() *Config {
 	return &Config{
-		Transport:  "sse",
-		Port:       8080,
-		HealthPort: 8081,
-		LogLevel:   "info",
-		LogFormat:  "console",
-		Kubeconfig: "",
+		Transport:    "sse",
+		Port:         8080,
+		HealthPort:   8081,
+		AllowOrigins: "*",
+		LogLevel:     "info",
+		LogFormat:    "console",
+		Kubeconfig:   "",
 	}
 }

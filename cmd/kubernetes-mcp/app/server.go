@@ -44,5 +44,6 @@ func NewServerCommand(cfg *config.Config) *cobra.Command {
 	cmd.Flags().IntVar(&cfg.Port, "port", cfg.Port, "Port to use for SSE transport")
 	cmd.Flags().StringVar(&cfg.Kubeconfig, "kubeconfig", cfg.Kubeconfig, "Path to kubeconfig file")
 	cmd.Flags().IntVar(&cfg.HealthPort, "health-port", cfg.HealthPort, "Port for health check endpoints (/healthz, /readyz)")
+	cmd.Flags().StringVar(&cfg.AllowOrigins, "allow-origins", cfg.AllowOrigins, "Cross-Origin Resource Sharing allowed origins, comma separated or * for all")
 	return cmd
 }
