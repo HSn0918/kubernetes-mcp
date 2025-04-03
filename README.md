@@ -49,8 +49,8 @@ English | [中文](README_ZH.md)
 
 ## 📋 Requirements
 
-📌 **Go 1.24**
-📌 **Kubernetes cluster access** (via `kubeconfig` or in-cluster service account)
+- 📌 **Go 1.24**
+- 📌 **Kubernetes cluster access** (via `kubeconfig` or in-cluster service account)
 
 ## 📦 Key Dependencies
 
