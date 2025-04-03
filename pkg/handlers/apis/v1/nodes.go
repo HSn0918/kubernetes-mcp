@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -32,7 +32,7 @@ type NodeHandlerImpl struct {
 var _ interfaces.ToolHandler = &NodeHandlerImpl{}
 
 // NewNodeHandler 创建新的节点处理程序
-func NewNodeHandler(client client.KubernetesClient) interfaces.ToolHandler {
+func NewNodeHandler(client kubernetes.Client) interfaces.ToolHandler {
 	return &NodeHandlerImpl{
 		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
 	}

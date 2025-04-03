@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -143,7 +143,7 @@ type ResourceMetricsOptions struct {
 }
 
 // GetNodesMetrics retrieves metrics for all nodes
-func GetNodesMetrics(ctx context.Context, client client.KubernetesClient, opts ...MetricsOption) ([]models.NodeMetricInfo, error) {
+func GetNodesMetrics(ctx context.Context, client kubernetes.Client, opts ...MetricsOption) ([]models.NodeMetricInfo, error) {
 	// Initialize default options
 	options := &MetricsOptions{
 		SortType: models.SortByCPU,
@@ -238,7 +238,7 @@ func SortNodeMetrics(metrics []models.NodeMetricInfo, sortType models.SortType) 
 }
 
 // GetNodeMetric retrieves metrics for a specific node
-func GetNodeMetric(ctx context.Context, client client.KubernetesClient, nodeName string) (*models.NodeMetricInfo, error) {
+func GetNodeMetric(ctx context.Context, client kubernetes.Client, nodeName string) (*models.NodeMetricInfo, error) {
 	// Get node metrics
 	nodeMetric, err := client.GetMetricsClient().MetricsV1beta1().NodeMetricses().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
@@ -256,7 +256,7 @@ func GetNodeMetric(ctx context.Context, client client.KubernetesClient, nodeName
 }
 
 // GetPodsMetrics retrieves Pod metrics
-func GetPodsMetrics(ctx context.Context, client client.KubernetesClient, namespace string, opts ...MetricsOption) ([]models.PodMetricInfo, error) {
+func GetPodsMetrics(ctx context.Context, client kubernetes.Client, namespace string, opts ...MetricsOption) ([]models.PodMetricInfo, error) {
 	// Initialize default options
 	options := &MetricsOptions{
 		SortType: models.SortByCPU,
@@ -342,7 +342,7 @@ func SortPodMetrics(metrics []models.PodMetricInfo, sortType models.SortType) {
 }
 
 // GetClusterResourceMetrics retrieves overall cluster resource usage
-func GetClusterResourceMetrics(ctx context.Context, client client.KubernetesClient, namespace string, opts ...MetricsOption) (*models.ClusterResourceMetrics, error) {
+func GetClusterResourceMetrics(ctx context.Context, client kubernetes.Client, namespace string, opts ...MetricsOption) (*models.ClusterResourceMetrics, error) {
 	// Initialize default options
 	options := &MetricsOptions{
 		ResourceType:  "all",

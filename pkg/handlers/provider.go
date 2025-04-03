@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 )
@@ -35,7 +35,7 @@ func (p *HandlerProviderImpl) RegisterAllHandlers(server *server.MCPServer) {
 
 // NewHandlerProvider 创建新的处理程序提供者
 func NewHandlerProvider() interfaces.HandlerProvider {
-	k8sClient := client.GetClient()
+	k8sClient := kubernetes.GetClient()
 
 	// 使用工厂创建所有处理程序
 	factory := NewHandlerFactory(k8sClient)

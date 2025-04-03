@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -32,7 +32,7 @@ type PromptHandler struct {
 var _ interfaces.ToolHandler = (*PromptHandler)(nil)
 
 // NewPromptHandler 创建新的提示词处理程序
-func NewPromptHandler(client client.KubernetesClient) *PromptHandler {
+func NewPromptHandler(client kubernetes.Client) *PromptHandler {
 	return &PromptHandler{
 		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.Prompt),
 	}

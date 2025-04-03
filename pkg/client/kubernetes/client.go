@@ -1,4 +1,4 @@
-package client
+package kubernetes
 
 import (
 	"context"
@@ -21,9 +21,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// KubernetesClient 定义了与 Kubernetes API 交互的接口。
+// Client 定义了与 Kubernetes API 交互的接口。
 // 它封装了 controller-runtime 的 client.Client 和 client-go 的核心客户端功能。
-type KubernetesClient interface {
+type Client interface {
 	// 嵌入 controller-runtime 的 Client 接口，提供核心的 CRUD 等面向对象的操作。
 	client.Client
 	// ClientSet 提供访问标准 client-go Clientset 的方法。
@@ -46,7 +46,7 @@ type KubernetesClient interface {
 	GetConfig() clientcmd.ClientConfig
 }
 
-// k8sClientImpl 是 KubernetesClient 接口的具体实现。
+// k8sClientImpl 是 Client 接口的具体实现。
 // 它聚合了 controller-runtime client 和 client-go 的各种客户端实例。
 type k8sClientImpl struct {
 	// controller-runtime 客户端，用于通用的对象操作。
@@ -63,15 +63,15 @@ type k8sClientImpl struct {
 	rawConfig clientcmd.ClientConfig
 }
 
-// 编译时断言，确保 k8sClientImpl 实现了 KubernetesClient 接口。
-var _ KubernetesClient = &k8sClientImpl{}
+// 编译时断言，确保 k8sClientImpl 实现了 Client 接口。
+var _ Client = &k8sClientImpl{}
 
-// defaultClient 是一个全局的 KubernetesClient 实例，通过 InitializeDefaultClient 初始化。
+// defaultClient 是一个全局的 Client 实例，通过 InitializeDefaultClient 初始化。
 // 使用 GetClient() 函数来安全地访问此实例。
-var defaultClient KubernetesClient
+var defaultClient Client
 
 // ClientSet 返回初始化时创建并存储的 client-go Clientset。
-// 这是 KubernetesClient 接口的实现方法。
+// 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) ClientSet() kubernetes.Interface {
 	// 注意：此实现假设 k.clientset 在 NewClient 中已被成功初始化。
 	// 如果在 NewClient 中初始化失败，则 NewClient 会返回错误，不会创建 k8sClientImpl 实例。
@@ -154,7 +154,7 @@ func (k *k8sClientImpl) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 }
 
 // GetCurrentNamespace 获取 kubeconfig 中配置的当前命名空间。
-// 这是 KubernetesClient 接口的实现方法。
+// 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) GetCurrentNamespace() (string, error) {
 	// 如果 k.rawConfig 为 nil (例如，使用集群内配置时)，则无法从 kubeconfig 文件获取命名空间。
 	if k.rawConfig == nil {
@@ -175,9 +175,9 @@ func (k *k8sClientImpl) GetCurrentNamespace() (string, error) {
 	return namespace, nil
 }
 
-// NewClient 创建并返回一个新的 KubernetesClient 实例。
+// NewClient 创建并返回一个新的 Client 实例。
 // 它会根据提供的配置加载 Kubernetes 配置，并初始化所有必需的客户端。
-func NewClient(appCfg *config.Config) (KubernetesClient, error) {
+func NewClient(appCfg *config.Config) (Client, error) {
 	// 获取日志记录器实例
 	log := logger.GetLogger()
 	log.Info("Initializing Kubernetes client...")
@@ -326,10 +326,10 @@ func InitializeDefaultClient(cfg *config.Config) error {
 	return nil
 }
 
-// GetClient 返回全局默认的 KubernetesClient 实例。
+// GetClient 返回全局默认的 Client 实例。
 // 在调用此函数之前，必须先成功调用 InitializeDefaultClient。
 // 如果 defaultClient 尚未初始化，此函数会触发 panic。
-func GetClient() KubernetesClient {
+func GetClient() Client {
 	// 添加检查确保 defaultClient 已经被初始化
 	if defaultClient == nil {
 		// 触发 panic，强制要求开发者在使用前必须先初始化
@@ -339,13 +339,13 @@ func GetClient() KubernetesClient {
 }
 
 // GetDynamicClient 返回 k8sClientImpl 实例中的动态客户端。
-// 这是 KubernetesClient 接口的实现方法。
+// 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) GetDynamicClient() dynamic.Interface {
 	return k.dynamicClient
 }
 
 // GetDiscoveryClient 返回 k8sClientImpl 实例中的 Discovery 客户端。
-// 这是 KubernetesClient 接口的实现方法。
+// 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) GetDiscoveryClient() discovery.DiscoveryInterface {
 	return k.discoveryClient
 }
@@ -355,7 +355,7 @@ func (k *k8sClientImpl) GetMetricsClient() metricsv.Interface {
 }
 
 // GetConfig 返回 k8sClientImpl 实例中存储的原始 clientcmd 配置。
-// 这是 KubernetesClient 接口的实现方法。
+// 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) GetConfig() clientcmd.ClientConfig {
 	return k.rawConfig
 }

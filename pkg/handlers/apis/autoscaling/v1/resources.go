@@ -3,10 +3,10 @@ package v1
 import (
 	"context"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 )
@@ -21,7 +21,7 @@ type ResourceHandlerImpl struct {
 var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Autoscaling资源处理程序
-func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
+func NewResourceHandler(client kubernetes.Client) interfaces.ResourceHandler {
 	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.AutoscalingAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "AUTOSCALING")
 	return &ResourceHandlerImpl{

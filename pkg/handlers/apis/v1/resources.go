@@ -10,12 +10,12 @@ import (
 	"time"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -37,7 +37,7 @@ type ResourceHandlerImpl struct {
 var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的核心资源处理程序
-func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
+func NewResourceHandler(client kubernetes.Client) interfaces.ResourceHandler {
 	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.CoreAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "CORE")
 	return &ResourceHandlerImpl{

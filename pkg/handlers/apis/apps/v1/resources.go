@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
@@ -27,7 +27,7 @@ type ResourceHandlerImpl struct {
 var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Apps资源处理程序
-func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
+func NewResourceHandler(client kubernetes.Client) interfaces.ResourceHandler {
 	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "APPS")
 	return &ResourceHandlerImpl{

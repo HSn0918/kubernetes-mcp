@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -32,7 +32,7 @@ type MetricsHandler struct {
 var _ interfaces.ToolHandler = (*MetricsHandler)(nil)
 
 // NewMetricsHandler creates a new metrics handler
-func NewMetricsHandler(client client.KubernetesClient) interfaces.ToolHandler {
+func NewMetricsHandler(client kubernetes.Client) interfaces.ToolHandler {
 	return &MetricsHandler{
 		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.Metrics),
 	}

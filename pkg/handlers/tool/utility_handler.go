@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
@@ -35,7 +35,7 @@ type UtilityHandler struct {
 var _ interfaces.ToolHandler = (*UtilityHandler)(nil)
 
 // NewUtilityHandler 创建新的通用工具处理程序
-func NewUtilityHandler(client client.KubernetesClient) interfaces.ToolHandler {
+func NewUtilityHandler(client kubernetes.Client) interfaces.ToolHandler {
 	return &UtilityHandler{
 		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.Tool),
 	}

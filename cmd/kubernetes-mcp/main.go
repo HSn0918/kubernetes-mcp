@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/hsn0918/kubernetes-mcp/cmd/kubernetes-mcp/app"
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 )
@@ -18,7 +18,7 @@ func main() {
 	log := logger.GetLogger()
 
 	// 初始化客户端
-	if err := client.InitializeDefaultClient(cfg); err != nil {
+	if err := kubernetes.InitializeDefaultClient(cfg); err != nil {
 		log.Error("Failed to initialize Kubernetes client", "error", err)
 		os.Exit(1)
 	}

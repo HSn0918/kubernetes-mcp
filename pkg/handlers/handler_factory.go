@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	apiextensionsv1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/apiextensions/v1"
 	appsv1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/apps/v1"
 	autoscalingv1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/autoscaling/v1"
@@ -19,14 +19,14 @@ import (
 
 // HandlerFactoryImpl 实现HandlerFactory接口
 type HandlerFactoryImpl struct {
-	client client.KubernetesClient
+	client kubernetes.Client
 }
 
 // 确保实现了接口
 var _ interfaces.HandlerFactory = &HandlerFactoryImpl{}
 
 // NewHandlerFactory 创建新的处理程序工厂
-func NewHandlerFactory(client client.KubernetesClient) interfaces.HandlerFactory {
+func NewHandlerFactory(client kubernetes.Client) interfaces.HandlerFactory {
 	return &HandlerFactoryImpl{
 		client: client,
 	}

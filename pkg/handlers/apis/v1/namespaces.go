@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -31,7 +31,7 @@ type NamespaceHandlerImpl struct {
 var _ interfaces.NamespaceHandler = &NamespaceHandlerImpl{}
 
 // NewNamespaceHandler 创建新的命名空间处理程序
-func NewNamespaceHandler(client client.KubernetesClient) interfaces.NamespaceHandler {
+func NewNamespaceHandler(client kubernetes.Client) interfaces.NamespaceHandler {
 	return &NamespaceHandlerImpl{
 		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
 	}
