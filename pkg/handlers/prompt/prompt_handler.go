@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -24,7 +25,7 @@ const (
 
 // PromptHandler 处理Kubernetes相关提示词
 type PromptHandler struct {
-	Handler
+	base.Handler
 }
 
 // 确保实现了接口
@@ -33,7 +34,7 @@ var _ interfaces.ToolHandler = (*PromptHandler)(nil)
 // NewPromptHandler 创建新的提示词处理程序
 func NewPromptHandler(client client.KubernetesClient) *PromptHandler {
 	return &PromptHandler{
-		Handler: NewBaseHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
+		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.Prompt),
 	}
 }
 

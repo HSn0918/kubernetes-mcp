@@ -40,6 +40,11 @@ const (
 	// AutoscalingAPIGroup 代表自动伸缩API组 (autoscaling/v1)
 	AutoscalingAPIGroup APIGroup = "autoscaling"
 )
+const (
+	Prompt  APIGroup = "prompt"
+	Metrics APIGroup = "metrics"
+	Tool    APIGroup = "tool"
+)
 
 // ToolHandler 定义MCP工具处理接口
 type ToolHandler interface {

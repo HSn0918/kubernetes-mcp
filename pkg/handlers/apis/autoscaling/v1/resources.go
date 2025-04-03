@@ -22,7 +22,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Autoscaling资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.AutoscalingAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.AutoscalingAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "AUTOSCALING")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

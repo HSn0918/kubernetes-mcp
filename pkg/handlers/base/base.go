@@ -14,8 +14,8 @@ type Handler struct {
 	Group  interfaces.APIGroup
 }
 
-// NewBaseHandler 创建新的基础处理程序
-func NewBaseHandler(client client.KubernetesClient, scope interfaces.ResourceScope, group interfaces.APIGroup) Handler {
+// NewHandler 创建新的基础处理程序
+func NewHandler(client client.KubernetesClient, scope interfaces.ResourceScope, group interfaces.APIGroup) Handler {
 	return Handler{
 		Client: client,
 		Log:    logger.GetLogger(),

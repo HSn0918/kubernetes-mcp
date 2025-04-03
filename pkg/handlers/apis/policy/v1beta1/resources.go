@@ -22,7 +22,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Policy资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.PolicyAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.PolicyAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "POLICY")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

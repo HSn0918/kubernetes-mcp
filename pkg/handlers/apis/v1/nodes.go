@@ -34,7 +34,7 @@ var _ interfaces.ToolHandler = &NodeHandlerImpl{}
 // NewNodeHandler 创建新的节点处理程序
 func NewNodeHandler(client client.KubernetesClient) interfaces.ToolHandler {
 	return &NodeHandlerImpl{
-		Handler: base.NewBaseHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
+		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
 	}
 }
 
@@ -183,14 +183,4 @@ func (h *NodeHandlerImpl) ListNodes(
 			},
 		},
 	}, nil
-}
-
-// GetScope 实现ToolHandler接口
-func (h *NodeHandlerImpl) GetScope() interfaces.ResourceScope {
-	return h.Scope
-}
-
-// GetAPIGroup 实现ToolHandler接口
-func (h *NodeHandlerImpl) GetAPIGroup() interfaces.APIGroup {
-	return h.Group
 }

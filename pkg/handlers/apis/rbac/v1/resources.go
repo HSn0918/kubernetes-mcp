@@ -22,7 +22,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的RBAC资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.RbacAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.RbacAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "RBAC")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

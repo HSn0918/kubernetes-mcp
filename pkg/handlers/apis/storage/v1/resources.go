@@ -22,7 +22,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的Storage资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.StorageAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.StorageAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "STORAGE")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

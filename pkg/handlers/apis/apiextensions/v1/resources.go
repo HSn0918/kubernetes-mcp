@@ -22,7 +22,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的APIExtensions资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.ClusterScope, interfaces.ApiextensionsAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.ClusterScope, interfaces.ApiextensionsAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "APIEXTENSIONS")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

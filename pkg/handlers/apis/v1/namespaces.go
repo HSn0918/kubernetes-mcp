@@ -33,7 +33,7 @@ var _ interfaces.NamespaceHandler = &NamespaceHandlerImpl{}
 // NewNamespaceHandler 创建新的命名空间处理程序
 func NewNamespaceHandler(client client.KubernetesClient) interfaces.NamespaceHandler {
 	return &NamespaceHandlerImpl{
-		Handler: base.NewBaseHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
+		Handler: base.NewHandler(client, interfaces.ClusterScope, interfaces.CoreAPIGroup),
 	}
 }
 
@@ -118,14 +118,4 @@ func (h *NamespaceHandlerImpl) ListNamespaces(
 			},
 		},
 	}, nil
-}
-
-// GetScope 实现ToolHandler接口
-func (h *NamespaceHandlerImpl) GetScope() interfaces.ResourceScope {
-	return h.Scope
-}
-
-// GetAPIGroup 实现ToolHandler接口
-func (h *NamespaceHandlerImpl) GetAPIGroup() interfaces.APIGroup {
-	return h.Group
 }

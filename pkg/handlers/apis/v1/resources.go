@@ -38,7 +38,7 @@ var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
 // NewResourceHandler 创建新的核心资源处理程序
 func NewResourceHandler(client client.KubernetesClient) interfaces.ResourceHandler {
-	baseHandler := base.NewBaseHandler(client, interfaces.NamespaceScope, interfaces.CoreAPIGroup)
+	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.CoreAPIGroup)
 	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "CORE")
 	return &ResourceHandlerImpl{
 		handler:     baseHandler,

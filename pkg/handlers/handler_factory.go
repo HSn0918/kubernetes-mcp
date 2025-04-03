@@ -11,8 +11,10 @@ import (
 	rbacv1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/rbac/v1"
 	storagev1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/storage/v1"
 	corev1 "github.com/hsn0918/kubernetes-mcp/pkg/handlers/apis/v1"
-	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	metricshandler "github.com/hsn0918/kubernetes-mcp/pkg/handlers/metrics"
+	prompthandler "github.com/hsn0918/kubernetes-mcp/pkg/handlers/prompt"
+	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/tool"
 )
 
 // HandlerFactoryImpl 实现HandlerFactory接口
@@ -87,15 +89,15 @@ func (f *HandlerFactoryImpl) CreateNodeHandler() interfaces.ToolHandler {
 
 // CreateUtilityHandler 创建通用工具处理程序
 func (f *HandlerFactoryImpl) CreateUtilityHandler() interfaces.ToolHandler {
-	return base.NewUtilityHandler(f.client)
+	return tool.NewUtilityHandler(f.client)
 }
 
 // CreatePromptHandler 创建提示词处理程序
 func (f *HandlerFactoryImpl) CreatePromptHandler() interfaces.ToolHandler {
-	return base.NewPromptHandler(f.client)
+	return prompthandler.NewPromptHandler(f.client)
 }
 
 // CreateMetricsHandler 创建指标处理程序
 func (f *HandlerFactoryImpl) CreateMetricsHandler() interfaces.ToolHandler {
-	return base.NewMetricsHandler(f.client)
+	return metricshandler.NewMetricsHandler(f.client)
 }
