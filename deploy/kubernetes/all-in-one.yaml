@@ -1,0 +1,251 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-system
+  annotations:
+    version: "1.6.0"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-mcp-config
+  namespace: mcp-system
+data:
+  port: "8080"
+  health-port: "8081"
+  log-level: "info"
+  log-format: "console"
+  allow-origins: "*"
+  base-url: "http://yoururl:8080"  # 替换为实际的服务URL
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-mcp-sa
+  namespace: mcp-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-mcp-role
+  namespace: mcp-system
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps","extensions","networking.k8s.io","storage.k8s.io","batch","autoscaling","policy","rbac.authorization.k8s.io"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+      - ingresses
+      - jobs
+      - cronjobs
+      - networkpolicies
+      - podsecuritypolicies
+      - storageclasses
+      - persistentvolumes
+      - horizontalpodautoscalers
+      - poddisruptionbudgets
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-rolebinding
+  namespace: mcp-system
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
+roleRef:
+  kind: Role
+  name: kubernetes-mcp-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-mcp-namespace-lister
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+      - namespaces
+      - nodes
+      - pods/log
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps","extensions","networking.k8s.io","storage.k8s.io","batch","autoscaling","policy","rbac.authorization.k8s.io"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+      - ingresses
+      - jobs
+      - cronjobs
+      - networkpolicies
+      - podsecuritypolicies
+      - storageclasses
+      - persistentvolumes
+      - horizontalpodautoscalers
+      - poddisruptionbudgets
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - nodes
+      - pods
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-lister-clusterbinding
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
+roleRef:
+  kind: ClusterRole
+  name: kubernetes-mcp-namespace-lister
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-mcp-deployment
+  namespace: mcp-system
+  labels:
+    app: kubernetes-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubernetes-mcp
+  template:
+    metadata:
+      labels:
+        app: kubernetes-mcp
+    spec:
+      serviceAccountName: kubernetes-mcp-sa
+      containers:
+        - name: kubernetes-mcp-container
+          image: hsn0918/kubernetes-mcp:latest
+          imagePullPolicy: Always  # 始终获取最新镜像
+          command: ["/app/kubernetes-mcp"]
+          args:
+            - "server"
+            - "transport"
+            - "sse"
+            - "--port=$(PORT)"
+            - "--health-port=$(HEALTH_PORT)"
+            - "--log-level=$(LOG_LEVEL)"
+            - "--log-format=$(LOG_FORMAT)"
+            - "--allow-origins=$(ALLOW_ORIGINS)"
+            - "--base-url=$(BASE_URL)"
+          env:
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: port
+            - name: HEALTH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: health-port
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: log-level
+            - name: LOG_FORMAT
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: log-format
+            - name: ALLOW_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: allow-origins
+            - name: BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: kubernetes-mcp-config
+                  key: base-url
+          ports:
+            - name: http-sse
+              containerPort: 8080
+              protocol: TCP
+            - name: http-health
+              containerPort: 8081
+              protocol: TCP
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-health
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http-health
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernetes-mcp-service
+  namespace: mcp-system
+  labels:
+    app: kubernetes-mcp
+spec:
+  selector:
+    app: kubernetes-mcp
+  ports:
+    - name: http-sse
+      protocol: TCP
+      port: 8080
+      targetPort: http-sse
+  type: ClusterIP

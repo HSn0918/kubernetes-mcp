@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-mcp-sa
+  namespace: mcp-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-mcp-role
+  namespace: mcp-system
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps","extensions","networking.k8s.io","storage.k8s.io","batch","autoscaling","policy","rbac.authorization.k8s.io"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+      - ingresses
+      - jobs
+      - cronjobs
+      - networkpolicies
+      - podsecuritypolicies
+      - storageclasses
+      - persistentvolumes
+      - horizontalpodautoscalers
+      - poddisruptionbudgets
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-rolebinding
+  namespace: mcp-system
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
+roleRef:
+  kind: Role
+  name: kubernetes-mcp-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-mcp-namespace-lister
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - configmaps
+      - secrets
+      - persistentvolumeclaims
+      - serviceaccounts
+      - namespaces
+      - nodes
+      - pods/log
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps","extensions","networking.k8s.io","storage.k8s.io","batch","autoscaling","policy","rbac.authorization.k8s.io"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+      - ingresses
+      - jobs
+      - cronjobs
+      - networkpolicies
+      - podsecuritypolicies
+      - storageclasses
+      - persistentvolumes
+      - horizontalpodautoscalers
+      - poddisruptionbudgets
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources:
+      - nodes
+      - pods
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-lister-clusterbinding
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-sa
+    namespace: mcp-system
+roleRef:
+  kind: ClusterRole
+  name: kubernetes-mcp-namespace-lister
+  apiGroup: rbac.authorization.k8s.io

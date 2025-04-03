@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-system
+  annotations:
+    version: "1.6.0"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-mcp-config
+  namespace: mcp-system
+data:
+  port: "8080"
+  health-port: "8081"
+  log-level: "info"
+  log-format: "console"
+  allow-origins: "*"
+  base-url: "http://yoururl:8080"  # 替换为实际的服务URL

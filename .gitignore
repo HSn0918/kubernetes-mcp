@@ -80,3 +80,10 @@ fabric.properties
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
 
+/.idea/git_toolbox_blame.xml
+/.idea/git_toolbox_prj.xml
+/bin/kubernetes-mcp
+/kubernetes-mcp
+/.idea/kubernetes-mcp.iml
+/.idea/modules.xml
+/.idea/vcs.xml

@@ -12,10 +12,6 @@ BINARY := $(OUTPUT_DIR)/$(APP_NAME)
 
 # Go 命令
 GO := go
-# Docker 命令
-DOCKER := docker
-# Docker Buildx 命令
-BUILDX := docker buildx
 
 # 构建版本信息 (尝试从 Git 获取，如果失败则使用默认值)
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,16 +26,10 @@ LDFLAGS := -w -s \
            -X $(VERSION_PKG_PATH).Commit=$(COMMIT) \
            -X $(VERSION_PKG_PATH).BuildDate=$(BUILD_DATE)
 
-# Docker 镜像名称和标签
-DOCKER_IMAGE_NAME ?= your-dockerhub-username/$(APP_NAME) # 或者其他镜像仓库/名称
-DOCKER_TAG := $(VERSION)
-DOCKER_IMAGE := $(DOCKER_IMAGE_NAME):$(DOCKER_TAG)
-DOCKER_IMAGE_LATEST := $(DOCKER_IMAGE_NAME):latest
+# 部署目录变量
+DEPLOY_DIR := ./deploy
 
-# Multi-arch build platforms (可以覆盖, e.g., make docker-buildx-push PLATFORMS=linux/amd64)
-PLATFORMS ?= linux/amd64,linux/arm64
-
-# --- Targets ---
+# --- Go 构建目标 ---
 
 # 默认目标
 all: build
@@ -71,75 +61,102 @@ run-sse: build
 	@echo ">>> Running $(APP_NAME) in sse mode on port 8080..."
 	$(BINARY) server --transport=sse --port=8080
 
-# 构建 Docker 镜像 (单架构，用于本地主机)
-docker-build:
-	@echo ">>> Building single-arch Docker image for host ($(DOCKER_IMAGE))..."
-	$(DOCKER) build \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		-t $(DOCKER_IMAGE) \
-		-t $(DOCKER_IMAGE_LATEST) \
-		.
-		# --load # 可选，通常是 build 的默认行为，确保镜像加载到本地
-	@echo "Docker images built locally: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
+# --- 部署相关目标（重定向到deploy目录） ---
 
-# 推送本地构建的单架构 Docker 镜像 (需要先运行 docker-build)
+# Docker 构建 (重定向到deploy目录)
+docker-build: export VERSION=$(VERSION)
+docker-build: export COMMIT=$(COMMIT)
+docker-build: export BUILD_DATE=$(BUILD_DATE)
+docker-build: build
+	@echo ">>> 重定向到deploy目录的Docker构建..."
+	$(MAKE) -C $(DEPLOY_DIR) docker-build
+
+# Docker 推送
 docker-push:
-	@echo ">>> Pushing single-arch Docker images $(DOCKER_IMAGE) and $(DOCKER_IMAGE_LATEST)..."
-	@echo "Ensure you are logged in via 'docker login' to the target registry for $(DOCKER_IMAGE_NAME)"
-	$(DOCKER) push $(DOCKER_IMAGE)
-	$(DOCKER) push $(DOCKER_IMAGE_LATEST)
+	@echo ">>> 重定向到deploy目录的Docker推送..."
+	$(MAKE) -C $(DEPLOY_DIR) docker-push
 
-# 构建并推送多架构 Docker 镜像 (使用 buildx)
-# 需要 Buildx 环境设置 (e.g., docker buildx create --use mybuilder)
-# 需要登录到目标 registry (docker login)
-docker-buildx-push:
-	@echo ">>> Building and pushing multi-arch Docker image for platforms [$(PLATFORMS)] ($(DOCKER_IMAGE))..."
-	@echo "Ensure Buildx is setup and you are logged in via 'docker login' to the target registry for $(DOCKER_IMAGE_NAME)"
-	$(BUILDX) build \
-		--platform $(PLATFORMS) \
-		--push \
-		--build-arg VERSION=$(VERSION) \
-		--build-arg COMMIT=$(COMMIT) \
-		--build-arg BUILD_DATE=$(BUILD_DATE) \
-		-t $(DOCKER_IMAGE) \
-		-t $(DOCKER_IMAGE_LATEST) \
-		.
-	@echo "Multi-arch Docker images pushed: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
+# 多架构Docker构建并推送
+docker-buildx-push: export VERSION=$(VERSION)
+docker-buildx-push: export COMMIT=$(COMMIT)
+docker-buildx-push: export BUILD_DATE=$(BUILD_DATE)
+docker-buildx-push: build
+	@echo ">>> 重定向到deploy目录的多架构Docker构建与推送..."
+	$(MAKE) -C $(DEPLOY_DIR) docker-buildx-push
 
-# 运行 Docker 容器 (stdio 模式, 交互式) - 使用本地单架构镜像
-docker-run-stdio: docker-build
-	@echo ">>> Running Docker container in stdio mode (interactive)..."
-	$(DOCKER) run --rm -it $(DOCKER_IMAGE) server --transport=stdio
+# 运行Docker容器 (sse模式)
+docker-run-sse:
+	@echo ">>> 重定向到deploy目录运行Docker容器..."
+	$(MAKE) -C $(DEPLOY_DIR) docker-run-sse
 
-# 运行 Docker 容器 (sse 模式, 端口映射) - 使用本地单架构镜像
-# 注意：可能需要挂载 kubeconfig 才能连接到集群
-# 例如: -v ~/.kube:/root/.kube:ro (假设容器用户是 root)
-docker-run-sse: docker-build
-	@echo ">>> Running Docker container in sse mode on port 8080..."
-	$(DOCKER) run --rm -p 8080:8080 $(DOCKER_IMAGE) server --transport=sse --port=8080
-	# Example with kubeconfig mount:
-	# $(DOCKER) run --rm -p 8080:8080 -v ~/.kube:/root/.kube:ro $(DOCKER_IMAGE) server --transport=sse --port=8080 --kubeconfig=/root/.kube/config
+# 运行Docker容器 (stdio模式)
+docker-run-stdio:
+	@echo ">>> 重定向到deploy目录运行Docker容器(stdio模式)..."
+	$(MAKE) -C $(DEPLOY_DIR) docker-run-sse
+
+# --- Kubernetes 部署目标 ---
+
+# 部署到Kubernetes
+k8s-deploy:
+	@echo ">>> 重定向到deploy目录部署到Kubernetes..."
+	$(MAKE) -C $(DEPLOY_DIR) k8s-deploy
+
+# 使用kustomize部署到Kubernetes
+k8s-deploy-kustomize:
+	@echo ">>> 重定向到deploy目录使用kustomize部署到Kubernetes..."
+	$(MAKE) -C $(DEPLOY_DIR) k8s-deploy-kustomize
+
+# 从Kubernetes删除
+k8s-delete:
+	@echo ">>> 重定向到deploy目录从Kubernetes删除..."
+	$(MAKE) -C $(DEPLOY_DIR) k8s-delete
+
+# 创建命名空间
+k8s-create-namespace:
+	@echo ">>> 重定向到deploy目录创建命名空间..."
+	$(MAKE) -C $(DEPLOY_DIR) k8s-create-namespace
+
+# 完整部署流程：构建镜像并部署到Kubernetes
+full-deploy: build
+	@echo ">>> 重定向到deploy目录进行完整部署流程..."
+	$(MAKE) -C $(DEPLOY_DIR) full-deploy
+
+# 多架构构建和部署
+multi-arch-deploy: build
+	@echo ">>> 重定向到deploy目录进行多架构构建和部署..."
+	$(MAKE) -C $(DEPLOY_DIR) multi-arch-deploy
 
 # 显示帮助信息
 help:
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Targets:"
-	@echo "  all                 Build the binary (default)"
-	@echo "  build               Build the Go binary"
-	@echo "  test                Run Go tests"
-	@echo "  clean               Remove build artifacts"
-	@echo "  run-stdio           Run the locally built binary in stdio mode"
-	@echo "  run-sse             Run the locally built binary in sse mode (port 8080)"
-	@echo "  docker-build        Build single-arch Docker image for the host architecture (loads locally)"
-	@echo "  docker-push         Push the locally built single-arch image (run docker-build first, requires login)"
-	@echo "  docker-buildx-push  Build multi-arch Docker image (via buildx) and push (requires buildx setup & login)"
-	@echo "                      Override platforms: make docker-buildx-push PLATFORMS=linux/amd64,linux/arm/v7"
-	@echo "  docker-run-stdio    Run the Docker container (local image) in stdio mode"
-	@echo "  docker-run-sse      Run the Docker container (local image) in sse mode (port 8080)"
-	@echo "  help                Show this help message"
+	@echo "Go构建目标:"
+	@echo "  all                 构建二进制文件 (默认)"
+	@echo "  build               构建Go二进制文件"
+	@echo "  test                运行Go测试"
+	@echo "  clean               清理构建产物"
+	@echo "  run-stdio           以stdio模式运行本地二进制文件"
+	@echo "  run-sse             以sse模式运行本地二进制文件 (端口8080)"
+	@echo ""
+	@echo "Docker相关目标:"
+	@echo "  docker-build        构建Docker镜像"
+	@echo "  docker-push         推送Docker镜像"
+	@echo "  docker-buildx-push  构建并推送多架构Docker镜像"
+	@echo "  docker-run-stdio    运行Docker容器 (stdio模式)"
+	@echo "  docker-run-sse      运行Docker容器 (sse模式)"
+	@echo ""
+	@echo "Kubernetes部署目标:"
+	@echo "  k8s-deploy          部署到Kubernetes集群"
+	@echo "  k8s-deploy-kustomize 使用kustomize部署到Kubernetes集群"
+	@echo "  k8s-delete          从Kubernetes集群删除"
+	@echo "  k8s-create-namespace 创建命名空间"
+	@echo "  full-deploy         构建镜像并部署到Kubernetes"
+	@echo "  multi-arch-deploy   构建多架构镜像并部署到Kubernetes"
+	@echo ""
+	@echo "详细的部署命令请查看 $(DEPLOY_DIR)/README.md"
 
 # 声明伪目标 (这些目标不代表文件)
-.PHONY: all build test clean run-stdio run-sse docker-build docker-push docker-buildx-push docker-run-stdio docker-run-sse help
+.PHONY: all build test clean run-stdio run-sse \
+        docker-build docker-push docker-buildx-push docker-run-stdio docker-run-sse \
+        k8s-deploy k8s-deploy-kustomize k8s-delete k8s-create-namespace \
+        full-deploy multi-arch-deploy help
