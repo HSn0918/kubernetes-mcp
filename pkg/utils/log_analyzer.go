@@ -32,15 +32,6 @@ func NewLogAnalyzerWithPattern(customErrorPattern string) *logAnalyzer {
 	}
 }
 
-// SetCustomErrorPattern 设置自定义错误模式
-func SetCustomErrorPattern(pattern string) models.LogPattern {
-	defaultPattern := DefaultLogPattern()
-	if pattern != "" {
-		defaultPattern.ErrorPattern = pattern
-	}
-	return defaultPattern
-}
-
 // AnalyzeLogs 分析日志行并返回结果
 func (a *logAnalyzer) AnalyzeLogs(logLines []string) *models.LogAnalysisResult {
 	startTime := time.Now()
