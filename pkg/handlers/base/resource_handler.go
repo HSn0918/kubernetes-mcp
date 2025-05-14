@@ -57,18 +57,20 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 		mcp.WithDescription(fmt.Sprintf("列出指定API组的Kubernetes资源（作用域：%s）。支持按命名空间过滤和标签选择器过滤。适用于资源监控、状态检查、依赖分析等场景。返回资源的基本信息列表。注意：在大规模集群中，建议使用标签选择器限制返回数量。", h.Scope)),
 		mcp.WithString("kind",
 			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写，必须是集群支持的资源类型。"),
-			mcp.Required(),
-		),
-		mcp.WithString("apiVersion",
-			mcp.Description("API版本，例如：'v1'、'apps/v1'等。必须与资源类型匹配，可以通过GET_API_RESOURCES工具查询支持的版本。"),
-			mcp.Required(),
 		),
 		mcp.WithString("namespace",
-			mcp.Description("资源所在的命名空间。对于集群级资源（如Node、PV）将忽略此参数。默认为'default'命名空间。"),
+			mcp.Description("资源所在的命名空间。如果是集群级资源则忽略此参数。默认为'default'命名空间。"),
 			mcp.DefaultString("default"),
 		),
+		mcp.WithString("fieldSelector",
+			mcp.Description("Kubernetes字段选择器，用于按资源属性进行过滤。例如：'status.phase=Running'表示只显示运行中的资源。支持多个条件，使用逗号分隔。"),
+		),
 		mcp.WithString("labelSelector",
-			mcp.Description("标签选择器，用于过滤资源。支持以下格式：\n- 等值匹配：'key=value'\n- 集合匹配：'key in (value1,value2)'\n- 多条件：'key1=value1,key2=value2'\n留空则返回所有资源。"),
+			mcp.Description("Kubernetes标签选择器，用于按资源标签进行过滤。例如：'app=nginx'表示只显示带有app=nginx标签的资源。支持多个标签，使用逗号分隔。"),
+		),
+		mcp.WithBoolean("showLabels",
+			mcp.Description("是否显示资源的所有标签。启用后将在输出中包含完整的标签列表，有助于资源分类和管理。默认为false。"),
+			mcp.DefaultBool(false),
 		),
 	), h.ListResources)
 
@@ -125,9 +127,9 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 
 	// 注册更新资源工具
 	server.AddTool(mcp.NewTool(fmt.Sprintf("UPDATE_%s_RESOURCE", prefix),
-		mcp.WithDescription("更新现有的API资源。采用声明式更新方式，支持部分字段更新。适用于配置修改、规格调整、状态更新等场景。自动处理资源版本冲突。建议先使用DIFF_MANIFEST工具预览变更。"),
+		mcp.WithDescription(fmt.Sprintf("更新指定API组中的资源（作用域：%s）。支持声明式更新，自动处理资源版本冲突。适用于配置变更、规格调整、状态更新等场景。建议先预览变更再应用。", h.Scope)),
 		mcp.WithString("yaml",
-			mcp.Description("更新后的资源YAML定义。必须包含完整的资源定义，未指定的字段将保持原值。支持使用策略性合并补丁。建议在更新前先获取当前配置。"),
+			mcp.Description("资源的YAML定义。必须是有效的Kubernetes资源清单，包含完整的资源定义。系统会根据资源名称和命名空间查找并更新目标资源。"),
 			mcp.Required(),
 		),
 	), h.UpdateResource)
@@ -144,7 +146,7 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 			mcp.Required(),
 		),
 		mcp.WithString("name",
-			mcp.Description("要删除的资源名称。区分大小写，必须是目标命名空间中存在的资源。删除后可能无法恢复，请谨慎操作。"),
+			mcp.Description("要删除的资源名称。区分大小写，必须是目标命名空间中存在的资源。删除操作不可逆，请谨慎操作。"),
 			mcp.Required(),
 		),
 		mcp.WithString("namespace",
@@ -414,58 +416,61 @@ func (h *ResourceHandler) DescribeResource(
 	}, nil
 }
 
-// CreateResource 实现通用的资源创建功能
-func (h *ResourceHandler) CreateResource(
-	ctx context.Context,
-	request mcp.CallToolRequest,
-) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
-	yamlStr, _ := arguments["yaml"].(string)
-
-	h.Log.Info("Creating resource from YAML", "group", h.Group)
+// CreateResource 创建资源
+func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	h.Log.Info("Creating resource",
+		"method", request.Method,
+		"handler_group", h.Group,
+		"handler_type", fmt.Sprintf("%T", h),
+	)
 
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
-	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
-	if err != nil {
-		h.Log.Error("Failed to parse YAML", "error", err)
+	yamlStr, _ := request.Params.Arguments["yaml"].(string)
+	if err := yaml.Unmarshal([]byte(yamlStr), obj); err != nil {
+		h.Log.Error("Failed to parse YAML",
+			"error", err,
+			"yaml", yamlStr,
+		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
 
-	// 验证资源组
-	if !h.validateResourceGroup(obj) {
-		return utils.NewErrorToolResult(fmt.Sprintf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)), nil
-	}
-
-	// 如果命名空间为空，使用default或kubeconfig中的
-	if obj.GetNamespace() == "" {
-		defaultNs := h.GetNamespaceWithDefault("")
-		obj.SetNamespace(defaultNs)
-		h.Log.Debug("Empty namespace in resource, setting namespace", "namespace", defaultNs)
-	}
-
-	h.Log.Debug("Parsed resource from YAML",
-		"kind", obj.GetKind(),
-		"name", obj.GetName(),
-		"namespace", obj.GetNamespace(),
+	// 记录资源信息
+	gvk := obj.GroupVersionKind()
+	h.Log.Info("Parsed resource",
+		"group", gvk.Group,
+		"version", gvk.Version,
+		"kind", gvk.Kind,
+		"expected_group", h.Group,
 	)
 
+	// 获取命名空间
+	namespace := h.GetNamespaceWithDefault(request.Params.Arguments["namespace"].(string))
+	if namespace != "" {
+		obj.SetNamespace(namespace)
+	}
+
 	// 创建资源
-	err = h.Client.Create(ctx, obj)
-	if err != nil {
+	if err := h.Client.Create(ctx, obj); err != nil {
 		h.Log.Error("Failed to create resource",
-			"kind", obj.GetKind(),
-			"name", obj.GetName(),
-			"namespace", obj.GetNamespace(),
 			"error", err,
+			"group", gvk.Group,
+			"version", gvk.Version,
+			"kind", gvk.Kind,
+			"namespace", namespace,
 		)
+		if errors.IsAlreadyExists(err) {
+			return utils.NewErrorToolResult(fmt.Sprintf("resource already exists: %v", err)), nil
+		}
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to create resource: %v", err)), nil
 	}
 
 	h.Log.Info("Resource created successfully",
-		"kind", obj.GetKind(),
+		"group", gvk.Group,
+		"version", gvk.Version,
+		"kind", gvk.Kind,
+		"namespace", namespace,
 		"name", obj.GetName(),
-		"namespace", obj.GetNamespace(),
 	)
 
 	return &mcp.CallToolResult{
@@ -473,7 +478,7 @@ func (h *ResourceHandler) CreateResource(
 			mcp.TextContent{
 				Type: "text",
 				Text: fmt.Sprintf("Successfully created %s/%s in namespace %s",
-					obj.GetKind(), obj.GetName(), obj.GetNamespace()),
+					gvk.Kind, obj.GetName(), namespace),
 			},
 		},
 	}, nil
@@ -496,12 +501,6 @@ func (h *ResourceHandler) UpdateResource(
 		h.Log.Error("Failed to parse YAML", "error", err)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
-
-	// 验证资源组
-	if !h.validateResourceGroup(obj) {
-		return utils.NewErrorToolResult(fmt.Sprintf("invalid resource group: %s, expected: %s", obj.GroupVersionKind().Group, h.Group)), nil
-	}
-
 	// 如果命名空间为空，使用default或kubeconfig中的
 	if obj.GetNamespace() == "" {
 		defaultNs := h.GetNamespaceWithDefault("")
@@ -605,42 +604,6 @@ func (h *ResourceHandler) DeleteResource(
 			},
 		},
 	}, nil
-}
-
-// validateResourceGroup 验证资源是否属于正确的API组
-func (h *ResourceHandler) validateResourceGroup(obj *unstructured.Unstructured) bool {
-	gvk := obj.GroupVersionKind()
-	switch h.Group {
-	case interfaces.CoreAPIGroup:
-		// 核心API组: pods, services, configmaps, secrets, namespaces等
-		return gvk.Group == ""
-	case interfaces.AppsAPIGroup:
-		// 应用API组: deployments, statefulsets, daemonsets等
-		return gvk.Group == "apps"
-	case interfaces.BatchAPIGroup:
-		// 批处理API组: jobs, cronjobs等
-		return gvk.Group == "batch"
-	case interfaces.NetworkingAPIGroup:
-		// 网络API组: ingresses, networkpolicies等
-		return gvk.Group == "networking.k8s.io"
-	case interfaces.StorageAPIGroup:
-		// 存储API组: storageclasses, volumeattachments等
-		return gvk.Group == "storage.k8s.io"
-	case interfaces.RbacAPIGroup:
-		// RBAC API组: roles, rolebindings, clusterroles, clusterrolebindings等
-		return gvk.Group == "rbac.authorization.k8s.io"
-	case interfaces.ApiextensionsAPIGroup:
-		// API扩展API组: customresourcedefinitions等
-		return gvk.Group == "apiextensions.k8s.io"
-	case interfaces.PolicyAPIGroup:
-		// 策略API组: podsecuritypolicies, poddisruptionbudgets等
-		return gvk.Group == "policy"
-	case interfaces.AutoscalingAPIGroup:
-		// 自动伸缩API组: horizontalpodautoscalers等
-		return gvk.Group == "autoscaling"
-	default:
-		return false
-	}
 }
 
 // Handle 处理通用资源请求
