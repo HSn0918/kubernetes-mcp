@@ -445,9 +445,10 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 	)
 
 	// 获取命名空间
-	namespace := h.GetNamespaceWithDefault(request.Params.Arguments["namespace"].(string))
-	if namespace != "" {
-		obj.SetNamespace(namespace)
+	if obj.GetNamespace() == "" {
+		defaultNs := h.GetNamespaceWithDefault("")
+		obj.SetNamespace(defaultNs)
+		h.Log.Debug("Empty namespace in resource, setting namespace", "namespace", defaultNs)
 	}
 
 	// 创建资源
@@ -457,7 +458,7 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 			"group", gvk.Group,
 			"version", gvk.Version,
 			"kind", gvk.Kind,
-			"namespace", namespace,
+			"namespace", obj.GetNamespace(),
 		)
 		if errors.IsAlreadyExists(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("resource already exists: %v", err)), nil
@@ -469,7 +470,7 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 		"group", gvk.Group,
 		"version", gvk.Version,
 		"kind", gvk.Kind,
-		"namespace", namespace,
+		"namespace", obj.GetNamespace(),
 		"name", obj.GetName(),
 	)
 
@@ -478,7 +479,7 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 			mcp.TextContent{
 				Type: "text",
 				Text: fmt.Sprintf("Successfully created %s/%s in namespace %s",
-					gvk.Kind, obj.GetName(), namespace),
+					gvk.Kind, obj.GetName(), obj.GetNamespace()),
 			},
 		},
 	}, nil
