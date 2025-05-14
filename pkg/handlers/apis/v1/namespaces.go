@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -57,7 +57,17 @@ func (h *NamespaceHandlerImpl) Register(server *server.MCPServer) {
 
 	// 注册列出命名空间工具
 	server.AddTool(mcp.NewTool(LIST_NAMESPACES,
-		mcp.WithDescription("List all namespaces (Cluster-scoped)"),
+		mcp.WithDescription("获取Kubernetes集群中所有命名空间的列表。提供命名空间的详细信息，包括状态、资源配额、限制范围等。适用于多租户管理、资源隔离、访问控制等场景。帮助了解集群的逻辑分区和资源分配情况。"),
+		mcp.WithString("fieldSelector",
+			mcp.Description("Kubernetes字段选择器，用于按命名空间属性进行过滤。例如：'status.phase=Active'表示只显示活动状态的命名空间。支持多个条件，使用逗号分隔。"),
+		),
+		mcp.WithString("labelSelector",
+			mcp.Description("Kubernetes标签选择器，用于按命名空间标签进行过滤。例如：'environment=production'表示只显示生产环境的命名空间。支持多个标签，使用逗号分隔。"),
+		),
+		mcp.WithBoolean("showLabels",
+			mcp.Description("是否显示命名空间的所有标签。启用后将在输出中包含完整的标签列表，有助于命名空间分类和管理。默认为false。"),
+			mcp.DefaultBool(false),
+		),
 	), h.ListNamespaces)
 }
 

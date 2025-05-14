@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
@@ -58,7 +58,17 @@ func (h *NodeHandlerImpl) Register(server *server.MCPServer) {
 
 	// 注册列出节点工具
 	server.AddTool(mcp.NewTool(LIST_NODES,
-		mcp.WithDescription("List all nodes (Cluster-scoped)"),
+		mcp.WithDescription("获取Kubernetes集群中所有节点的列表。提供节点的详细信息，包括状态、容量、可分配资源、标签、污点等。适用于集群管理、资源规划、节点维护等场景。支持节点健康状态监控和资源分配决策。"),
+		mcp.WithString("fieldSelector",
+			mcp.Description("Kubernetes字段选择器，用于按节点属性进行过滤。例如：'spec.unschedulable=false'表示只显示可调度节点。支持多个条件，使用逗号分隔。"),
+		),
+		mcp.WithString("labelSelector",
+			mcp.Description("Kubernetes标签选择器，用于按节点标签进行过滤。例如：'kubernetes.io/role=master'表示只显示主节点。支持多个标签，使用逗号分隔。"),
+		),
+		mcp.WithBoolean("showLabels",
+			mcp.Description("是否显示节点的所有标签。启用后将在输出中包含完整的标签列表，有助于标签管理和节点分类。默认为false。"),
+			mcp.DefaultBool(false),
+		),
 	), h.ListNodes)
 }
 
