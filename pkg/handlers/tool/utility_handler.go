@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
@@ -16,6 +16,7 @@ import (
 // 定义工具常量
 const (
 	// 通用工具方法
+	GET_CURRENT_TIME  = "GET_CURRENT_TIME"
 	GET_CLUSTER_INFO  = "GET_CLUSTER_INFO"
 	GET_API_RESOURCES = "GET_API_RESOURCES"
 	SEARCH_RESOURCES  = "SEARCH_RESOURCES"
@@ -44,115 +45,118 @@ func NewUtilityHandler(client kubernetes.Client) interfaces.ToolHandler {
 // Register 注册通用工具方法
 func (h *UtilityHandler) Register(server *server.MCPServer) {
 	h.Log.Info("Registering utility handlers")
-
+	// 获取当前时间工具
+	server.AddTool(mcp.NewTool(GET_CURRENT_TIME,
+		mcp.WithDescription("获取系统当前时间。用于同步集群操作时间戳，确保操作记录的准确性。常用于日志记录、资源创建时间标记等场景。返回格式：RFC3339标准时间格式。"),
+	), h.GetCurrentTime)
 	// 获取集群信息工具
 	server.AddTool(mcp.NewTool(GET_CLUSTER_INFO,
-		mcp.WithDescription("Get Kubernetes cluster information"),
+		mcp.WithDescription("获取Kubernetes集群详细信息。包括：集群版本、节点数量、命名空间列表、API Server地址等核心信息。用于集群状态检查、版本兼容性验证、集群资源概览等场景。建议在执行关键操作前先检查集群状态。"),
 	), h.GetClusterInfo)
 
 	// 获取API资源工具
 	server.AddTool(mcp.NewTool(GET_API_RESOURCES,
-		mcp.WithDescription("Get available API resources in the cluster"),
+		mcp.WithDescription("获取集群中可用的API资源列表。可选择性地按API组过滤。返回资源的版本、种类、是否支持命名空间等信息。用于资源操作前的权限检查、API版本验证、自定义资源发现等场景。注意：某些资源可能需要特定的访问权限。"),
 		mcp.WithString("group",
-			mcp.Description("API Group (optional)"),
+			mcp.Description("API组名称，例如：'apps'、'batch'等。留空则返回所有API组的资源。"),
 		),
 	), h.GetAPIResources)
 
 	// 搜索资源工具
 	server.AddTool(mcp.NewTool(SEARCH_RESOURCES,
-		mcp.WithDescription("Search resources across the cluster"),
+		mcp.WithDescription("跨集群资源搜索工具。支持按名称、标签、注解进行模糊匹配。可指定搜索范围（命名空间）和资源类型。适用于资源定位、依赖分析、状态检查等场景。支持通配符匹配，例如：'app=nginx-*'。注意：大规模搜索可能影响性能。"),
 		mcp.WithString("query",
-			mcp.Description("Search query (name, label, annotation pattern)"),
+			mcp.Description("搜索条件，支持以下格式：\n- 名称匹配：'name=nginx'\n- 标签匹配：'label=app:nginx'\n- 注解匹配：'annotation=deployment.kubernetes.io/revision:1'\n支持通配符：'*'"),
 			mcp.Required(),
 		),
 		mcp.WithString("namespaces",
-			mcp.Description("Comma-separated list of namespaces to search (default: all)"),
+			mcp.Description("要搜索的命名空间列表，多个用逗号分隔。例如：'default,kube-system'。留空表示搜索所有命名空间。"),
 		),
 		mcp.WithString("kinds",
-			mcp.Description("Comma-separated list of resource kinds to search (default: all)"),
+			mcp.Description("要搜索的资源类型列表，多个用逗号分隔。例如：'pods,deployments'。留空表示搜索所有类型。建议指定以提高搜索效率。"),
 		),
 		mcp.WithBoolean("matchLabels",
-			mcp.Description("Whether to match labels in search"),
+			mcp.Description("是否匹配标签。启用后将检查资源的所有标签。可能增加搜索时间。"),
 			mcp.DefaultBool(true),
 		),
 		mcp.WithBoolean("matchAnnotations",
-			mcp.Description("Whether to match annotations in search"),
+			mcp.Description("是否匹配注解。启用后将检查资源的所有注解。可能增加搜索时间。"),
 			mcp.DefaultBool(true),
 		),
 	), h.SearchResources)
 
 	// 解释资源结构工具
 	server.AddTool(mcp.NewTool(EXPLAIN_RESOURCE,
-		mcp.WithDescription("Explain resource structure"),
+		mcp.WithDescription("解释Kubernetes资源结构。提供资源定义的详细说明，包括字段含义、类型、是否必填等信息。支持递归解释嵌套字段。适用于资源配置编写、字段验证、API兼容性检查等场景。可用于学习和理解Kubernetes API结构。"),
 		mcp.WithString("kind",
-			mcp.Description("Kind of resource"),
+			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写。"),
 			mcp.Required(),
 		),
 		mcp.WithString("apiVersion",
-			mcp.Description("API Version"),
+			mcp.Description("API版本，例如：'v1'、'apps/v1'、'networking.k8s.io/v1'等。必须与kind匹配。"),
 			mcp.Required(),
 		),
 		mcp.WithString("field",
-			mcp.Description("Specific field path to explain (e.g. 'spec.containers')"),
+			mcp.Description("要解释的具体字段路径，使用点号分隔。例如：'spec.containers'、'spec.template.spec'等。留空则解释整个资源结构。"),
 		),
 		mcp.WithBoolean("recursive",
-			mcp.Description("Explain fields recursively"),
+			mcp.Description("是否递归解释字段。启用后将显示所有子字段的详细信息。可能产生大量输出。"),
 			mcp.DefaultBool(false),
 		),
 	), h.ExplainResource)
 
 	// 应用清单工具
 	server.AddTool(mcp.NewTool(APPLY_MANIFEST,
-		mcp.WithDescription("Apply Kubernetes manifest(s)"),
+		mcp.WithDescription("应用Kubernetes资源清单。支持创建、更新操作，采用声明式API。可处理单个或多个资源清单。支持dry-run模式进行预检查。使用server-side apply确保安全的多方协作。适用于资源部署、配置更新、状态管理等场景。"),
 		mcp.WithString("yaml",
-			mcp.Description("YAML manifest(s) to apply"),
+			mcp.Description("YAML格式的资源清单。支持多文档语法（使用'---'分隔）。必须是有效的Kubernetes资源定义。"),
 			mcp.Required(),
 		),
 		mcp.WithBoolean("dryRun",
-			mcp.Description("Perform a dry run without making changes"),
+			mcp.Description("是否执行试运行。启用后只验证和模拟执行，不实际修改集群状态。建议在重要操作前先进行试运行。"),
 			mcp.DefaultBool(false),
 		),
 		mcp.WithString("fieldManager",
-			mcp.Description("Name of the field manager"),
+			mcp.Description("字段管理器名称，用于跟踪字段所有权。在多方管理同一资源时很重要。建议使用有意义的名称以便跟踪。"),
 			mcp.DefaultString("kubernetes-mcp"),
 		),
 	), h.ApplyManifest)
 
 	// 验证清单工具
 	server.AddTool(mcp.NewTool(VALIDATE_MANIFEST,
-		mcp.WithDescription("Validate Kubernetes manifest(s)"),
+		mcp.WithDescription("验证Kubernetes资源清单的合法性。检查包括：语法正确性、必填字段、字段类型、API版本兼容性等。支持验证单个或多个资源清单。适用于部署前的配置检查、CI/CD流程中的质量控制等场景。及早发现配置错误，避免部署失败。"),
 		mcp.WithString("yaml",
-			mcp.Description("YAML manifest(s) to validate"),
+			mcp.Description("要验证的YAML格式资源清单。支持多文档语法。将进行完整的结构和语义验证。"),
 			mcp.Required(),
 		),
 	), h.ValidateManifest)
 
 	// 比较清单工具
 	server.AddTool(mcp.NewTool(DIFF_MANIFEST,
-		mcp.WithDescription("Compare manifest with live resource"),
+		mcp.WithDescription("比较清单与集群中现有资源的差异。显示详细的字段级别差异，包括新增、修改、删除的配置。支持比较复杂的嵌套结构。适用于配置更新前的影响分析、变更审计、配置偏差检测等场景。帮助理解变更范围和潜在影响。"),
 		mcp.WithString("yaml",
-			mcp.Description("YAML manifest to compare"),
+			mcp.Description("要比较的YAML格式资源清单。将与集群中的同名资源进行比较。必须包含资源的名称和命名空间信息。"),
 			mcp.Required(),
 		),
 	), h.DiffManifest)
 
 	// 获取事件工具
 	server.AddTool(mcp.NewTool(GET_EVENTS,
-		mcp.WithDescription("Get events for a resource"),
+		mcp.WithDescription("获取特定资源相关的事件信息。包括：警告、错误、状态变更等事件。支持按时间范围和事件类型过滤。适用于问题诊断、状态监控、变更追踪等场景。帮助理解资源的生命周期和运行状态。注意：事件默认保留时间有限。"),
 		mcp.WithString("kind",
-			mcp.Description("Kind of resource"),
+			mcp.Description("资源类型，例如：'Pod'、'Deployment'等。必须是集群中存在的资源类型。"),
 			mcp.Required(),
 		),
 		mcp.WithString("apiVersion",
-			mcp.Description("API Version"),
+			mcp.Description("API版本，必须与资源类型匹配。例如：'v1'、'apps/v1'等。"),
 			mcp.Required(),
 		),
 		mcp.WithString("name",
-			mcp.Description("Name of the resource"),
+			mcp.Description("资源名称。区分大小写，必须是目标命名空间中存在的资源。"),
 			mcp.Required(),
 		),
 		mcp.WithString("namespace",
-			mcp.Description("Kubernetes namespace"),
+			mcp.Description("资源所在的命名空间。如果资源类型是集群级别的，此参数将被忽略。"),
 			mcp.DefaultString("default"),
 		),
 	), h.GetEvents)
