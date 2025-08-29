@@ -12,7 +12,8 @@
 
 - 🔹 **MCP 服务器**：实现 `mcp-go` 库提供 MCP 功能
 - 🔹 **Kubernetes 交互**：使用 `controller-runtime` 客户端与集群交互
-- 🔹 **传输方式**：支持标准 I/O（`stdio`）或服务器发送事件（`sse`）// 但是stdio模式还没实现
+- 🔹 **传输方式**：支持标准 I/O（`stdio`）、服务器发送事件（`sse`）和流式HTTP（`streamable`）传输
+- 🔹 **流式支持**：StreamableHTTP 传输提供长时间运行操作的实时进度通知
 
 ## 🛠️ 资源管理工具
 
@@ -88,6 +89,9 @@ docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport stdio
 # 使用 SSE 传输方式
 docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse
 
+# 使用 StreamableHTTP 传输方式（支持流式功能）
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport streamable
+
 # 使用 SSE 传输方式并自定义基础 URL
 docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse --base-url="http://your-host:8080"
 
@@ -108,6 +112,9 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server transport sse
 
 # 使用 SSE（服务器发送事件）
 ./kubernetes-mcp server transport sse --port 8080
+
+# 使用 StreamableHTTP（流式传输功能）
+./kubernetes-mcp server transport streamable --port 8080
 
 # 指定自定义基础 URL（客户端连接用）
 ./kubernetes-mcp server transport sse --port 8080 --base-url="http://your-server-address:8080"
@@ -135,6 +142,10 @@ kubernetes-mcp
 │       │   ├── --health-port=8081
 │       │   ├── --base-url="http://example.com:8080"
 │       │   └── --allow-origins="*"
+│       ├── streamable
+│       │   ├── --port=8080
+│       │   ├── --health-port=8081
+│       │   └── --allow-origins="*"
 │       └── stdio
 └── version
 ```
@@ -152,7 +163,55 @@ SSE 传输方式特有选项：
 - 🔧 **基础 URL**：`--base-url`（客户端连接服务器的 URL）
 - 🔧 **CORS 允许的源**：`--allow-origins`（逗号分隔列表或 "*" 表示允许所有）
 
+StreamableHTTP 传输方式特有选项：
+- 🔧 **端口**：`--port`（默认 8080）
+- 🔧 **健康检查端口**：`--health-port`（默认 8081）
+- 🔧 **CORS 允许的源**：`--allow-origins`（逗号分隔列表或 "*" 表示允许所有）
+- 🔧 **流式功能**：支持长时间运行操作的实时进度通知
+- 🔧 **会话管理**：有状态会话提供增强的流式体验
+
 ## 🧩 高级功能
+
+### 🚀 StreamableHTTP 传输功能
+
+StreamableHTTP 传输模式为实时操作提供了增强功能：
+
+- 🔄 **实时进度通知**：在长时间运行的操作期间获取实时更新
+- 🔄 **会话管理**：有状态会话在请求之间保持上下文
+- 🔄 **基于 HTTP 的通信**：使用 JSON-RPC 2.0 协议的标准 HTTP 请求
+- 🔄 **CORS 支持**：为基于 Web 的客户端提供跨域资源共享
+- 🔄 **健康检查端点**：在 `/healthz` 和 `/readyz` 提供内置健康监控
+- 🔄 **MCP 端点**：在 `/mcp` 提供所有模型上下文协议操作的主 API 端点
+
+#### 📡 连接到 StreamableHTTP 服务器
+
+```bash
+# 启动服务器
+./kubernetes-mcp server transport streamable --port 8080
+
+# 健康检查
+curl http://localhost:8081/healthz
+
+# 初始化 MCP 会话
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {"name": "my-client", "version": "1.0.0"}
+    },
+    "id": 1
+  }'
+
+# 列出可用工具（使用初始化响应中的会话 ID）
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id>" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 2}'
+```
 
 ### 📝 结构化工具
 

@@ -60,7 +60,7 @@ func (h *UtilityHandler) GetAPIResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	group, _ := arguments["group"].(string)
 
 	h.Log.Info("Getting API resources", "group", group)

@@ -1,16 +1,18 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/config"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/middlewares"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
 
 // stdioServer 标准输入/输出模式服务器
@@ -28,6 +30,15 @@ type sseServer struct {
 	allowOrigins string
 }
 
+// streamableHTTPServer StreamableHTTP模式服务器，支持流式处理
+type streamableHTTPServer struct {
+	mcpServer            *server.MCPServer
+	streamableHTTPServer *server.StreamableHTTPServer
+	port                 int
+	log                  logger.Logger
+	allowOrigins         string
+}
+
 // serverFactoryImpl 服务器工厂实现
 type serverFactoryImpl struct {
 	handlerProvider interfaces.HandlerProvider
@@ -36,6 +47,7 @@ type serverFactoryImpl struct {
 // 确保实现了接口
 var _ MCPServer = &stdioServer{}
 var _ MCPServer = &sseServer{}
+var _ MCPServer = &streamableHTTPServer{}
 var _ Factory = &serverFactoryImpl{}
 
 // GetServer 实现接口方法
@@ -80,6 +92,27 @@ func (s *sseServer) Stop() error {
 	return nil
 }
 
+// GetServer 实现接口方法
+func (s *streamableHTTPServer) GetServer() *server.MCPServer {
+	return s.mcpServer
+}
+
+// Start 实现接口方法
+func (s *streamableHTTPServer) Start() error {
+	s.log.Info("Starting StreamableHTTP server", "port", s.port, "allowOrigins", s.allowOrigins)
+
+	// 启动StreamableHTTP服务器
+	addr := ":" + strconv.Itoa(s.port)
+	return s.streamableHTTPServer.Start(addr)
+}
+
+// Stop 实现接口方法
+func (s *streamableHTTPServer) Stop() error {
+	s.log.Info("Stopping StreamableHTTP server")
+	// 可以添加额外的StreamableHTTP服务器清理逻辑
+	return nil
+}
+
 // CreateServer 实现接口方法
 func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) {
 	log := logger.GetLogger()
@@ -88,18 +121,18 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 	serverOptions := []server.ServerOption{
 		server.WithResourceCapabilities(false, false),
 		server.WithPromptCapabilities(false),
+		server.WithToolCapabilities(true),
 		server.WithLogging(),
 	}
-
 	// 添加钩子选项
 	hooks := &server.Hooks{}
-	hooks.AddBeforeAny(func(id any, method mcp.MCPMethod, message any) {
+	hooks.AddBeforeAny(func(ctx context.Context, id any, method mcp.MCPMethod, message any) {
 		log.Debug("Request received", "id", id, "method", method, "message", message)
 	})
-	hooks.AddOnSuccess(func(id any, method mcp.MCPMethod, message any, result any) {
+	hooks.AddOnSuccess(func(ctx context.Context, id any, method mcp.MCPMethod, message any, result any) {
 		log.Info("Request successful", "id", id, "method", method)
 	})
-	hooks.AddOnError(func(id any, method mcp.MCPMethod, message any, err error) {
+	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
 		log.Error("Request failed", "id", id, "method", method, "error", err)
 	})
 	serverOptions = append(serverOptions, server.WithHooks(hooks))
@@ -115,7 +148,8 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 	f.handlerProvider.RegisterAllHandlers(mcpServer)
 
 	// 根据传输方式创建服务器
-	if cfg.Transport == "sse" {
+	switch cfg.Transport {
+	case "sse":
 		// 配置服务器地址和基础URL
 		port := cfg.Port
 		addr := ":" + strconv.Itoa(port)
@@ -153,7 +187,30 @@ func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) 
 			log:          log,
 			allowOrigins: cfg.AllowOrigins,
 		}, nil
-	} else {
+
+	case "streamable", "http":
+		// 配置StreamableHTTP服务器，支持流式处理
+		port := cfg.Port
+
+		// 创建StreamableHTTP服务器选项
+		streamableOptions := []server.StreamableHTTPOption{
+			server.WithEndpointPath("/mcp"),
+			server.WithStateLess(false), // 支持有状态会话以便流式处理
+		}
+
+		// 创建StreamableHTTP服务器
+		mcpStreamableServer := server.NewStreamableHTTPServer(mcpServer, streamableOptions...)
+
+		return &streamableHTTPServer{
+			mcpServer:            mcpServer,
+			streamableHTTPServer: mcpStreamableServer,
+			port:                 port,
+			log:                  log,
+			allowOrigins:         cfg.AllowOrigins,
+		}, nil
+
+	default:
+		// 默认使用stdio服务器
 		return &stdioServer{
 			mcpServer: mcpServer,
 			log:       log,

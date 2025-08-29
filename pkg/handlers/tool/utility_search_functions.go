@@ -19,7 +19,7 @@ func (h *UtilityHandler) SearchResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	query, _ := arguments["query"].(string)
 	namespacesStr, _ := arguments["namespaces"].(string)
 	kindsStr, _ := arguments["kinds"].(string)

@@ -182,7 +182,7 @@ func (h *MetricsHandler) GetNodeMetrics(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	nodeName, _ := arguments["nodeName"].(string)
 	sortByStr, _ := arguments["sortBy"].(string)
 	fieldSelector, _ := arguments["fieldSelector"].(string)
@@ -297,7 +297,7 @@ func (h *MetricsHandler) GetPodMetrics(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	namespace, _ := arguments["namespace"].(string)
 	podName, _ := arguments["podName"].(string)
 	sortByStr, _ := arguments["sortBy"].(string)
@@ -395,7 +395,7 @@ func (h *MetricsHandler) GetResourceMetrics(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	resourceType, _ := arguments["resource"].(string)
 	namespace, _ := arguments["namespace"].(string)
 	fieldSelector, _ := arguments["fieldSelector"].(string)
@@ -516,7 +516,7 @@ func (h *MetricsHandler) GetTopConsumers(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	resourceType, _ := arguments["resource"].(string)
 	namespace, _ := arguments["namespace"].(string)
 	limit, _ := arguments["limit"].(float64)

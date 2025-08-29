@@ -194,7 +194,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	// --- 参数提取 ---
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 
 	// Type assertion with proper error handling
 	nameVal, ok := arguments["name"]
@@ -351,7 +351,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	// --- 参数提取 ---
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 
 	// Type assertion with proper error handling
 	nameVal, ok := arguments["name"]

@@ -179,7 +179,7 @@ func (h *ResourceHandler) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespaceArg, _ := arguments["namespace"].(string)
@@ -276,7 +276,7 @@ func (h *ResourceHandler) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)
@@ -347,7 +347,7 @@ func (h *ResourceHandler) DescribeResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)
@@ -426,7 +426,8 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
-	yamlStr, _ := request.Params.Arguments["yaml"].(string)
+	arguments := request.GetArguments()
+	yamlStr, _ := arguments["yaml"].(string)
 	if err := yaml.Unmarshal([]byte(yamlStr), obj); err != nil {
 		h.Log.Error("Failed to parse YAML",
 			"error", err,
@@ -490,7 +491,7 @@ func (h *ResourceHandler) UpdateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	yamlStr, _ := arguments["yaml"].(string)
 
 	h.Log.Info("Updating resource from YAML", "group", h.Group)
@@ -549,7 +550,7 @@ func (h *ResourceHandler) DeleteResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)

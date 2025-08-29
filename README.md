@@ -12,7 +12,8 @@ English | [中文](README_ZH.md)
 
 - 🔹 **MCP Server**: Implements the `mcp-go` library to provide MCP functionality
 - 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
-- 🔹 **Transport Methods**: Supports standard I/O (`stdio`) or Server-Sent Events (`sse`)// but the stdio is not implement
+- 🔹 **Transport Methods**: Supports standard I/O (`stdio`), Server-Sent Events (`sse`), and StreamableHTTP (`streamable`) with streaming capabilities
+- 🔹 **Streaming Support**: StreamableHTTP transport provides real-time progress notifications for long-running operations
 
 ## 🛠️ Resource Management Tools
 
@@ -88,6 +89,9 @@ docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport stdio
 # Run with SSE transport
 docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse
 
+# Run with StreamableHTTP transport (with streaming support)
+docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport streamable
+
 # Run with SSE transport and custom base URL
 docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse --base-url="http://your-host:8080"
 
@@ -108,6 +112,9 @@ docker run -v /path/to/config:/config kubernetes-mcp:latest server transport sse
 
 # Using SSE (Server-Sent Events)
 ./kubernetes-mcp server transport sse --port 8080
+
+# Using StreamableHTTP (with streaming capabilities)
+./kubernetes-mcp server transport streamable --port 8080
 
 # Specifying custom base URL for SSE connections
 ./kubernetes-mcp server transport sse --port 8080 --base-url="http://your-server-address:8080"
@@ -135,6 +142,10 @@ kubernetes-mcp
 │       │   ├── --health-port=8081
 │       │   ├── --base-url="http://example.com:8080"
 │       │   └── --allow-origins="*"
+│       ├── streamable
+│       │   ├── --port=8080
+│       │   ├── --health-port=8081
+│       │   └── --allow-origins="*"
 │       └── stdio
 └── version
 ```
@@ -152,7 +163,55 @@ SSE transport specific options:
 - 🔧 **Base URL**: `--base-url` (URL clients will use to connect to the server)
 - 🔧 **CORS allowed origins**: `--allow-origins` (comma-separated list or "*" for all)
 
+StreamableHTTP transport specific options:
+- 🔧 **Port**: `--port` (default 8080)
+- 🔧 **Health check port**: `--health-port` (default 8081)
+- 🔧 **CORS allowed origins**: `--allow-origins` (comma-separated list or "*" for all)
+- 🔧 **Streaming capabilities**: Supports real-time progress notifications for long-running operations
+- 🔧 **Session management**: Stateful sessions for enhanced streaming experience
+
 ## 🧩 Advanced Features
+
+### 🚀 StreamableHTTP Transport Features
+
+The StreamableHTTP transport mode provides enhanced capabilities for real-time operations:
+
+- 🔄 **Real-time Progress Notifications**: Get live updates during long-running operations
+- 🔄 **Session Management**: Stateful sessions maintain context between requests
+- 🔄 **HTTP-based Communication**: Standard HTTP requests with JSON-RPC 2.0 protocol
+- 🔄 **CORS Support**: Cross-origin resource sharing for web-based clients
+- 🔄 **Health Check Endpoints**: Built-in health monitoring at `/healthz` and `/readyz`
+- 🔄 **MCP Endpoint**: Main API endpoint at `/mcp` for all Model Context Protocol operations
+
+#### 📡 Connecting to StreamableHTTP Server
+
+```bash
+# Start the server
+./kubernetes-mcp server transport streamable --port 8080
+
+# Health check
+curl http://localhost:8081/healthz
+
+# Initialize MCP session
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {},
+      "clientInfo": {"name": "my-client", "version": "1.0.0"}
+    },
+    "id": 1
+  }'
+
+# List available tools (using session ID from initialization response)
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id>" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 2}'
+```
 
 ### 🔍 Structured Tools
 
