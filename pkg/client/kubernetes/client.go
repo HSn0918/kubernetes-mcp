@@ -250,20 +250,12 @@ func NewClient(appCfg *config.Config) (Client, error) {
 		return nil, fmt.Errorf("failed to add client-go scheme: %w", err)
 	}
 	// TODO: 在这里可以添加应用程序自定义资源 (CRD) 的类型到 Scheme
-	// 例如: import mycrdscheme "my/api/v1"
-	//       mycrdscheme.AddToScheme(scheme)
-
-	// 调整客户端的 QPS (每秒查询数) 和 Burst (峰值并发数)，以控制请求速率
-	// 增加这些值可以提高吞吐量，但需注意 API Server 的承受能力
 	restConfig.QPS = 500
 	restConfig.Burst = 1000
 	log.Debug("Set client QPS and Burst", "qps", restConfig.QPS, "burst", restConfig.Burst)
 
-	// 3. 创建 controller-runtime Client
-	// 这个客户端提供了更高级别的、面向对象的 API
 	runtimeClient, err := client.New(restConfig, client.Options{
 		Scheme: scheme,
-		// MapperProvider: client.NewLazyRESTMapperLoader(restConfig), // 可以考虑使用 Lazy Mapper
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create controller-runtime client: %w", err)
@@ -358,4 +350,7 @@ func (k *k8sClientImpl) GetMetricsClient() metricsv.Interface {
 // 这是 Client 接口的实现方法。
 func (k *k8sClientImpl) GetConfig() clientcmd.ClientConfig {
 	return k.rawConfig
+}
+func (k *k8sClientImpl) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return k.client.Apply(ctx, obj, opts...)
 }

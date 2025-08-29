@@ -25,7 +25,7 @@ func (h *UtilityHandler) ExplainResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	field, _ := arguments["field"].(string)
@@ -164,7 +164,7 @@ func (h *UtilityHandler) ApplyManifest(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	yamlStr, _ := arguments["yaml"].(string)
 	dryRun, _ := arguments["dryRun"].(bool)
 	fieldManager, _ := arguments["fieldManager"].(string)
@@ -372,7 +372,7 @@ func (h *UtilityHandler) ValidateManifest(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	yamlStr, _ := arguments["yaml"].(string)
 
 	h.Log.Info("Validating manifest")
@@ -493,7 +493,7 @@ func (h *UtilityHandler) DiffManifest(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	yamlStr, _ := arguments["yaml"].(string)
 
 	h.Log.Info("Diffing manifest")
@@ -755,7 +755,7 @@ func (h *UtilityHandler) GetEvents(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	name, _ := arguments["name"].(string)

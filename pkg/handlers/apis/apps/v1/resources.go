@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
@@ -67,7 +67,7 @@ func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.Params.Arguments
+	arguments := request.GetArguments()
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespace, _ := arguments["namespace"].(string)
