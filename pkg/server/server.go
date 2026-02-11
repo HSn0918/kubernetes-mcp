@@ -15,13 +15,18 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/middlewares"
 )
 
-// stdioServer 标准输入/输出模式服务器
+const (
+	serverName            = "Kubernetes-mcp"
+	serverVersion         = "1.6.0"
+	streamableEndpoint    = "/mcp"
+	defaultTransportAlias = "http"
+)
+
 type stdioServer struct {
 	mcpServer *server.MCPServer
 	log       logger.Logger
 }
 
-// sseServer Server-Sent Events模式服务器
 type sseServer struct {
 	mcpServer    *server.MCPServer
 	sseServer    *server.SSEServer
@@ -30,7 +35,6 @@ type sseServer struct {
 	allowOrigins string
 }
 
-// streamableHTTPServer StreamableHTTP模式服务器，支持流式处理
 type streamableHTTPServer struct {
 	mcpServer            *server.MCPServer
 	streamableHTTPServer *server.StreamableHTTPServer
@@ -39,188 +43,168 @@ type streamableHTTPServer struct {
 	allowOrigins         string
 }
 
-// serverFactoryImpl 服务器工厂实现
 type serverFactoryImpl struct {
 	handlerProvider interfaces.HandlerProvider
 }
 
-// 确保实现了接口
 var _ MCPServer = &stdioServer{}
 var _ MCPServer = &sseServer{}
 var _ MCPServer = &streamableHTTPServer{}
 var _ Factory = &serverFactoryImpl{}
 
-// GetServer 实现接口方法
 func (s *stdioServer) GetServer() *server.MCPServer {
 	return s.mcpServer
 }
 
-// Start 实现接口方法
 func (s *stdioServer) Start() error {
 	s.log.Info("Starting stdio server")
 	if err := server.ServeStdio(s.mcpServer); err != nil {
-		return fmt.Errorf("server error: %v", err)
+		return fmt.Errorf("server error: %w", err)
 	}
 	return nil
 }
 
-// Stop 实现接口方法
 func (s *stdioServer) Stop() error {
 	s.log.Info("Stopping stdio server")
-	// stdio服务器不需要额外的停止逻辑
 	return nil
 }
 
-// GetServer 实现接口方法
 func (s *sseServer) GetServer() *server.MCPServer {
 	return s.mcpServer
 }
 
-// Start 实现接口方法
 func (s *sseServer) Start() error {
-	s.log.Info("Starting SSE server", "port", s.port, "allowOrigins", s.allowOrigins)
-
-	// 服务器在CreateServer时已完全配置好，直接启动
-	addr := ":" + strconv.Itoa(s.port)
-	return s.sseServer.Start(addr)
+	s.log.Info(
+		"Starting SSE server",
+		logger.Int("port", s.port),
+		logger.String("allowOrigins", s.allowOrigins),
+	)
+	return s.sseServer.Start(addrFromPort(s.port))
 }
 
-// Stop 实现接口方法
 func (s *sseServer) Stop() error {
 	s.log.Info("Stopping SSE server")
-	// 可以添加额外的SSE服务器清理逻辑
 	return nil
 }
 
-// GetServer 实现接口方法
 func (s *streamableHTTPServer) GetServer() *server.MCPServer {
 	return s.mcpServer
 }
 
-// Start 实现接口方法
 func (s *streamableHTTPServer) Start() error {
-	s.log.Info("Starting StreamableHTTP server", "port", s.port, "allowOrigins", s.allowOrigins)
-
-	// 启动StreamableHTTP服务器
-	addr := ":" + strconv.Itoa(s.port)
-	return s.streamableHTTPServer.Start(addr)
+	s.log.Info(
+		"Starting StreamableHTTP server",
+		logger.Int("port", s.port),
+		logger.String("allowOrigins", s.allowOrigins),
+	)
+	return s.streamableHTTPServer.Start(addrFromPort(s.port))
 }
 
-// Stop 实现接口方法
 func (s *streamableHTTPServer) Stop() error {
 	s.log.Info("Stopping StreamableHTTP server")
-	// 可以添加额外的StreamableHTTP服务器清理逻辑
 	return nil
 }
 
-// CreateServer 实现接口方法
 func (f *serverFactoryImpl) CreateServer(cfg *config.Config) (MCPServer, error) {
 	log := logger.GetLogger()
+	mcpServer := newMCPServer(log)
+	f.handlerProvider.RegisterAllHandlers(mcpServer)
 
-	// 准备服务器选项
-	serverOptions := []server.ServerOption{
+	switch cfg.Transport {
+	case config.TransportSSE:
+		return newSSETransportServer(cfg, mcpServer, log), nil
+	case config.TransportStreamable, defaultTransportAlias:
+		return newStreamableTransportServer(cfg, mcpServer, log), nil
+	default:
+		return &stdioServer{mcpServer: mcpServer, log: log}, nil
+	}
+}
+
+func newMCPServer(log logger.Logger) *server.MCPServer {
+	hooks := &server.Hooks{}
+	hooks.AddBeforeAny(func(ctx context.Context, id any, method mcp.MCPMethod, message any) {
+		log.Debug(
+			"Request received",
+			logger.Any("id", id),
+			logger.String("method", string(method)),
+			logger.Any("message", message),
+		)
+	})
+	hooks.AddOnSuccess(func(ctx context.Context, id any, method mcp.MCPMethod, message any, result any) {
+		log.Info(
+			"Request successful",
+			logger.Any("id", id),
+			logger.String("method", string(method)),
+		)
+	})
+	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
+		log.Error(
+			"Request failed",
+			logger.Any("id", id),
+			logger.String("method", string(method)),
+			logger.Any("error", err),
+		)
+	})
+
+	options := []server.ServerOption{
 		server.WithResourceCapabilities(false, false),
 		server.WithPromptCapabilities(false),
 		server.WithToolCapabilities(true),
 		server.WithLogging(),
+		server.WithHooks(hooks),
 	}
-	// 添加钩子选项
-	hooks := &server.Hooks{}
-	hooks.AddBeforeAny(func(ctx context.Context, id any, method mcp.MCPMethod, message any) {
-		log.Debug("Request received", "id", id, "method", method, "message", message)
-	})
-	hooks.AddOnSuccess(func(ctx context.Context, id any, method mcp.MCPMethod, message any, result any) {
-		log.Info("Request successful", "id", id, "method", method)
-	})
-	hooks.AddOnError(func(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
-		log.Error("Request failed", "id", id, "method", method, "error", err)
-	})
-	serverOptions = append(serverOptions, server.WithHooks(hooks))
 
-	// 创建基本MCP服务器
-	mcpServer := server.NewMCPServer(
-		"Kubernetes-mcp",
-		"1.6.0",
-		serverOptions...,
+	return server.NewMCPServer(serverName, serverVersion, options...)
+}
+
+func newSSETransportServer(cfg *config.Config, mcpServer *server.MCPServer, log logger.Logger) MCPServer {
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = "http://localhost:" + strconv.Itoa(cfg.Port)
+		log.Info("BaseURL not set, using default", logger.String("baseURL", baseURL))
+	} else {
+		log.Info("Using configured BaseURL", logger.String("baseURL", baseURL))
+	}
+
+	httpServer := &http.Server{}
+	mcpSSEServer := server.NewSSEServer(mcpServer,
+		server.WithBaseURL(baseURL),
+		server.WithHTTPServer(httpServer),
 	)
+	httpServer.Handler = middlewares.CorsMiddleware(cfg.AllowOrigins, mcpSSEServer)
 
-	// 注册所有处理程序
-	f.handlerProvider.RegisterAllHandlers(mcpServer)
-
-	// 根据传输方式创建服务器
-	switch cfg.Transport {
-	case "sse":
-		// 配置服务器地址和基础URL
-		port := cfg.Port
-		addr := ":" + strconv.Itoa(port)
-
-		// 使用配置中的BaseURL，如果未设置则使用默认的localhost
-		baseURL := cfg.BaseURL
-		if baseURL == "" {
-			baseURL = "http://localhost:" + strconv.Itoa(port)
-			log.Info("BaseURL not set, using default", "baseURL", baseURL)
-		} else {
-			log.Info("Using configured BaseURL", "baseURL", baseURL)
-		}
-
-		// 创建自定义的HTTP服务器，添加CORS支持
-		httpServer := &http.Server{
-			Addr: addr,
-			// 应用CORS中间件，允许所有源
-			Handler: middlewares.CreateCorsHandlerFunc(cfg.AllowOrigins, http.DefaultServeMux),
-		}
-
-		// 创建SSE服务器选项
-		sseOptions := []server.SSEOption{
-			server.WithBaseURL(baseURL),
-			server.WithHTTPServer(httpServer), // 使用配置了CORS的HTTP服务器
-		}
-
-		// 创建SSE服务器
-		mcpSseServer := server.NewSSEServer(mcpServer, sseOptions...)
-
-		// 返回配置好的服务器实例
-		return &sseServer{
-			mcpServer:    mcpServer,
-			sseServer:    mcpSseServer,
-			port:         port,
-			log:          log,
-			allowOrigins: cfg.AllowOrigins,
-		}, nil
-
-	case "streamable", "http":
-		// 配置StreamableHTTP服务器，支持流式处理
-		port := cfg.Port
-
-		// 创建StreamableHTTP服务器选项
-		streamableOptions := []server.StreamableHTTPOption{
-			server.WithEndpointPath("/mcp"),
-			server.WithStateLess(false), // 支持有状态会话以便流式处理
-		}
-
-		// 创建StreamableHTTP服务器
-		mcpStreamableServer := server.NewStreamableHTTPServer(mcpServer, streamableOptions...)
-
-		return &streamableHTTPServer{
-			mcpServer:            mcpServer,
-			streamableHTTPServer: mcpStreamableServer,
-			port:                 port,
-			log:                  log,
-			allowOrigins:         cfg.AllowOrigins,
-		}, nil
-
-	default:
-		// 默认使用stdio服务器
-		return &stdioServer{
-			mcpServer: mcpServer,
-			log:       log,
-		}, nil
+	return &sseServer{
+		mcpServer:    mcpServer,
+		sseServer:    mcpSSEServer,
+		port:         cfg.Port,
+		log:          log,
+		allowOrigins: cfg.AllowOrigins,
 	}
 }
 
-// NewServerFactory 创建新的服务器工厂
-func NewServerFactory(handlerProvider interfaces.HandlerProvider) Factory {
-	return &serverFactoryImpl{
-		handlerProvider: handlerProvider,
+func newStreamableTransportServer(cfg *config.Config, mcpServer *server.MCPServer, log logger.Logger) MCPServer {
+	httpServer := &http.Server{}
+	mcpStreamableServer := server.NewStreamableHTTPServer(
+		mcpServer,
+		server.WithEndpointPath(streamableEndpoint),
+		server.WithStateLess(false),
+		server.WithStreamableHTTPServer(httpServer),
+	)
+	httpServer.Handler = middlewares.CorsMiddleware(cfg.AllowOrigins, mcpStreamableServer)
+
+	return &streamableHTTPServer{
+		mcpServer:            mcpServer,
+		streamableHTTPServer: mcpStreamableServer,
+		port:                 cfg.Port,
+		log:                  log,
+		allowOrigins:         cfg.AllowOrigins,
 	}
+}
+
+func NewServerFactory(handlerProvider interfaces.HandlerProvider) Factory {
+	return &serverFactoryImpl{handlerProvider: handlerProvider}
+}
+
+func addrFromPort(port int) string {
+	return ":" + strconv.Itoa(port)
 }

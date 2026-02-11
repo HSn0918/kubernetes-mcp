@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
+	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,10 +34,10 @@ func (h *UtilityHandler) ExplainResource(
 	recursive, _ := arguments["recursive"].(bool)
 
 	h.Log.Info("Explaining resource",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"field", field,
-		"recursive", recursive,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("field", field),
+		logger.Bool("recursive", recursive),
 	)
 
 	// 构建参数
@@ -49,10 +51,10 @@ func (h *UtilityHandler) ExplainResource(
 	_, resources, err := h.Client.GetDiscoveryClient().ServerGroupsAndResources()
 	if err != nil {
 		if !discovery.IsGroupDiscoveryFailedError(err) {
-			h.Log.Error("Failed to get API resources", "error", err)
+			h.Log.Error("Failed to get API resources", logger.Any("error", err))
 			return nil, fmt.Errorf("failed to get API resources: %w", err)
 		}
-		h.Log.Warn("Partial API discovery error", "error", err)
+		h.Log.Warn("Partial API discovery error", logger.Any("error", err))
 	}
 
 	// 查找特定的资源定义
@@ -170,8 +172,8 @@ func (h *UtilityHandler) ApplyManifest(
 	fieldManager, _ := arguments["fieldManager"].(string)
 
 	h.Log.Info("Applying manifest",
-		"dryRun", dryRun,
-		"fieldManager", fieldManager,
+		logger.Bool("dryRun", dryRun),
+		logger.String("fieldManager", fieldManager),
 	)
 
 	if yamlStr == "" {
@@ -201,8 +203,8 @@ func (h *UtilityHandler) ApplyManifest(
 		obj := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(doc), &obj.Object); err != nil {
 			h.Log.Error("Failed to parse YAML document",
-				"document", i+1,
-				"error", err,
+				logger.Int("document", i+1),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: %v\n", i+1, err))
 			errorCount++
@@ -217,7 +219,7 @@ func (h *UtilityHandler) ApplyManifest(
 
 		if kind == "" || apiVersion == "" {
 			h.Log.Error("Document is missing kind or apiVersion",
-				"document", i+1,
+				logger.Int("document", i+1),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: missing kind or apiVersion\n", i+1))
 			errorCount++
@@ -226,9 +228,9 @@ func (h *UtilityHandler) ApplyManifest(
 
 		if name == "" {
 			h.Log.Error("Document is missing metadata.name",
-				"document", i+1,
-				"kind", kind,
-				"apiVersion", apiVersion,
+				logger.Int("document", i+1),
+				logger.String("kind", kind),
+				logger.String("apiVersion", apiVersion),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: missing metadata.name\n", i+1))
 			errorCount++
@@ -236,11 +238,11 @@ func (h *UtilityHandler) ApplyManifest(
 		}
 
 		h.Log.Info("Processing resource",
-			"document", i+1,
-			"kind", kind,
-			"apiVersion", apiVersion,
-			"name", name,
-			"namespace", namespace,
+			logger.Int("document", i+1),
+			logger.String("kind", kind),
+			logger.String("apiVersion", apiVersion),
+			logger.String("name", name),
+			logger.String("namespace", namespace),
 		)
 
 		// 设置ServerSideApply选项
@@ -260,8 +262,8 @@ func (h *UtilityHandler) ApplyManifest(
 		gvr, err := h.Client.GetDiscoveryClient().ServerResourcesForGroupVersion(apiVersion)
 		if err != nil {
 			h.Log.Error("Failed to get resource for group version",
-				"apiVersion", apiVersion,
-				"error", err,
+				logger.String("apiVersion", apiVersion),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error: Failed to get resource for apiVersion %s: %v\n", apiVersion, err))
 			errorCount++
@@ -279,8 +281,8 @@ func (h *UtilityHandler) ApplyManifest(
 
 		if resourceName == "" {
 			h.Log.Error("Resource not found",
-				"kind", kind,
-				"apiVersion", apiVersion,
+				logger.String("kind", kind),
+				logger.String("apiVersion", apiVersion),
 			)
 			result.WriteString(fmt.Sprintf("Error: Resource not found for kind %s with apiVersion %s\n", kind, apiVersion))
 			errorCount++
@@ -323,9 +325,9 @@ func (h *UtilityHandler) ApplyManifest(
 		data, err := json.Marshal(obj)
 		if err != nil {
 			h.Log.Error("Failed to marshal object to JSON",
-				"kind", kind,
-				"name", name,
-				"error", err,
+				logger.String("kind", kind),
+				logger.String("name", name),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error: Failed to marshal %s/%s: %v\n", kind, name, err))
 			errorCount++
@@ -336,9 +338,9 @@ func (h *UtilityHandler) ApplyManifest(
 		_, err = dr.Patch(ctx, name, types.ApplyPatchType, data, options)
 		if err != nil {
 			h.Log.Error("Failed to apply resource",
-				"kind", kind,
-				"name", name,
-				"error", err,
+				logger.String("kind", kind),
+				logger.String("name", name),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error: Failed to apply %s/%s: %v\n", kind, name, err))
 			errorCount++
@@ -400,8 +402,8 @@ func (h *UtilityHandler) ValidateManifest(
 		obj := &unstructured.Unstructured{}
 		if err := yaml.Unmarshal([]byte(doc), &obj.Object); err != nil {
 			h.Log.Error("Failed to parse YAML document",
-				"document", i+1,
-				"error", err,
+				logger.Int("document", i+1),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: YAML parsing failed - %v\n", i+1, err))
 			errorCount++
@@ -417,7 +419,7 @@ func (h *UtilityHandler) ValidateManifest(
 		// 验证基本字段
 		if kind == "" || apiVersion == "" {
 			h.Log.Error("Document is missing kind or apiVersion",
-				"document", i+1,
+				logger.Int("document", i+1),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: missing kind or apiVersion\n", i+1))
 			errorCount++
@@ -426,9 +428,9 @@ func (h *UtilityHandler) ValidateManifest(
 
 		if name == "" {
 			h.Log.Error("Document is missing metadata.name",
-				"document", i+1,
-				"kind", kind,
-				"apiVersion", apiVersion,
+				logger.Int("document", i+1),
+				logger.String("kind", kind),
+				logger.String("apiVersion", apiVersion),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: missing metadata.name\n", i+1))
 			errorCount++
@@ -439,8 +441,8 @@ func (h *UtilityHandler) ValidateManifest(
 		gvr, err := h.Client.GetDiscoveryClient().ServerResourcesForGroupVersion(apiVersion)
 		if err != nil {
 			h.Log.Error("Failed to get resource for group version",
-				"apiVersion", apiVersion,
-				"error", err,
+				logger.String("apiVersion", apiVersion),
+				logger.Any("error", err),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: apiVersion '%s' not found in the cluster\n", i+1, apiVersion))
 			errorCount++
@@ -458,8 +460,8 @@ func (h *UtilityHandler) ValidateManifest(
 
 		if !resourceFound {
 			h.Log.Error("Resource not found",
-				"kind", kind,
-				"apiVersion", apiVersion,
+				logger.String("kind", kind),
+				logger.String("apiVersion", apiVersion),
 			)
 			result.WriteString(fmt.Sprintf("Error in document %d: kind '%s' with apiVersion '%s' not found in the cluster\n", i+1, kind, apiVersion))
 			errorCount++
@@ -509,7 +511,7 @@ func (h *UtilityHandler) DiffManifest(
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
 	if err := yaml.Unmarshal([]byte(yamlStr), &obj.Object); err != nil {
-		h.Log.Error("Failed to parse YAML", "error", err)
+		h.Log.Error("Failed to parse YAML", logger.Any("error", err))
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
@@ -536,8 +538,8 @@ func (h *UtilityHandler) DiffManifest(
 	gvr, err := h.Client.GetDiscoveryClient().ServerResourcesForGroupVersion(apiVersion)
 	if err != nil {
 		h.Log.Error("Failed to get resource for group version",
-			"apiVersion", apiVersion,
-			"error", err,
+			logger.String("apiVersion", apiVersion),
+			logger.Any("error", err),
 		)
 		return nil, fmt.Errorf("failed to get resource definition: %w", err)
 	}
@@ -581,10 +583,10 @@ func (h *UtilityHandler) DiffManifest(
 	existingObj, err := dynamicResource.Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		h.Log.Error("Failed to get existing resource",
-			"kind", kind,
-			"name", name,
-			"namespace", namespace,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.String("namespace", namespace),
+			logger.Any("error", err),
 		)
 		result.WriteString(fmt.Sprintf("Resource %s/%s does not exist in the cluster. This would be a new resource.\n", kind, name))
 		// 显示将要创建的资源概要
@@ -768,10 +770,10 @@ func (h *UtilityHandler) GetEvents(
 	}
 
 	h.Log.Info("Getting resource events",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"name", name,
-		"namespace", namespace,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
 	)
 
 	if kind == "" || apiVersion == "" || name == "" {
@@ -792,7 +794,7 @@ func (h *UtilityHandler) GetEvents(
 	})
 
 	if err != nil {
-		h.Log.Error("Failed to list events", "error", err)
+		h.Log.Error("Failed to list events", logger.Any("error", err))
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
@@ -826,7 +828,7 @@ func (h *UtilityHandler) GetEvents(
 		// 写入事件
 		for _, event := range relatedEvents {
 			// 格式化时间
-			lastSeen := formatTimeAgo(event.LastTimestamp.Time)
+			lastSeen := utils.FormatTimeAgoEN(event.LastTimestamp.Time)
 
 			// 截断过长的消息
 			message := event.Message

@@ -3,85 +3,79 @@ package v1
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
 
-// ResourceHandlerImpl Apps资源处理程序实现
+const defaultAppsAPIVersion = "apps/v1"
+
 type ResourceHandlerImpl struct {
 	handler     base.Handler
 	baseHandler interfaces.BaseResourceHandler
+	listMethod  string
 }
 
-// 确保实现了接口
 var _ interfaces.ResourceHandler = &ResourceHandlerImpl{}
 
-// NewResourceHandler 创建新的Apps资源处理程序
 func NewResourceHandler(client kubernetes.Client) interfaces.ResourceHandler {
-	baseHandler := base.NewHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
-	baseResourceHandler := base.NewResourceHandlerPtr(baseHandler, "APPS")
+	h := base.NewHandler(client, interfaces.NamespaceScope, interfaces.AppsAPIGroup)
+	baseResourceHandler := base.NewResourceHandlerPtr(h, "APPS")
 	return &ResourceHandlerImpl{
-		handler:     baseHandler,
+		handler:     h,
 		baseHandler: baseResourceHandler,
+		listMethod:  fmt.Sprintf("LIST_%s_RESOURCES", baseResourceHandler.GetResourcePrefix()),
 	}
 }
 
-// Handle 实现接口方法
 func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 检查是否是LIST_APPS_RESOURCES方法，使用我们的特殊实现
-	if request.Method == fmt.Sprintf("LIST_%s_RESOURCES", h.baseHandler.GetResourcePrefix()) {
+	if request.Method == h.listMethod {
 		return h.ListResources(ctx, request)
 	}
-	// 其他方法使用父类的处理方法
 	return h.baseHandler.Handle(ctx, request)
 }
 
-// Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
-	// 使用父类的注册方法
 	h.baseHandler.Register(server)
 }
 
-// GetScope 实现ToolHandler接口
 func (h *ResourceHandlerImpl) GetScope() interfaces.ResourceScope {
 	return h.handler.GetScope()
 }
 
-// GetAPIGroup 实现ToolHandler接口
 func (h *ResourceHandlerImpl) GetAPIGroup() interfaces.APIGroup {
 	return h.handler.GetAPIGroup()
 }
 
-// ListResources 重写父类的列表方法，添加Apps特有的信息展示
 func (h *ResourceHandlerImpl) ListResources(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
-	arguments := request.GetArguments()
-	kind, _ := arguments["kind"].(string)
-	apiVersion, _ := arguments["apiVersion"].(string)
-	namespace, _ := arguments["namespace"].(string)
+	kind, apiVersion, namespace, labelSelector, showLabels, errResult := h.parseListArguments(request)
+	if errResult != nil {
+		return errResult, nil
+	}
 
 	h.handler.Log.Info("Listing Apps resources",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"namespace", namespace,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("namespace", namespace),
+		logger.String("labelSelector", labelSelector),
 	)
 
-	// 解析GroupVersionKind
 	gvk := utils.ParseGVK(apiVersion, kind)
-
-	// 创建列表对象
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   gvk.Group,
@@ -89,94 +83,44 @@ func (h *ResourceHandlerImpl) ListResources(
 		Kind:    kind + "List",
 	})
 
-	// 列出资源
-	err := h.handler.Client.List(ctx, list, &clientpkg.ListOptions{Namespace: namespace})
-	if err != nil {
-		h.handler.Log.Error("Failed to list Apps resources",
-			"kind", kind,
-			"namespace", namespace,
-			"error", err,
-		)
-		return nil, fmt.Errorf("failed to list Apps resources: %v", err)
+	listOptions := &clientpkg.ListOptions{Namespace: namespace}
+	if labelSelector != "" {
+		selector, err := labels.Parse(labelSelector)
+		if err != nil {
+			return utils.NewErrorToolResult(fmt.Sprintf("failed to parse label selector: %v", err)), nil
+		}
+		listOptions.LabelSelector = selector
 	}
 
-	// 构建响应，为 Apps 资源特别定制
+	if err := h.handler.Client.List(ctx, list, listOptions); err != nil {
+		h.handler.Log.Error("Failed to list Apps resources",
+			logger.String("kind", kind),
+			logger.String("namespace", namespace),
+			logger.Any("error", err),
+		)
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to list Apps resources: %v", err)), nil
+	}
+
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Found %d %s resources in namespace %s:\n\n", len(list.Items), kind, namespace))
+	result.WriteString(fmt.Sprintf("Found %d %s resources in namespace %s", len(list.Items), kind, namespace))
+	if labelSelector != "" {
+		result.WriteString(fmt.Sprintf(" with label selector '%s'", labelSelector))
+	}
+	result.WriteString(":\n\n")
 
-	// 显示 Apps 资源的特定信息，例如 Deployments 的副本数
 	for _, item := range list.Items {
-		name := item.GetName()
-		labels := item.GetLabels()
-
-		result.WriteString(fmt.Sprintf("- %s\n", name))
-
-		// 获取特定于资源类型的详细信息
-		switch kind {
-		case "Deployment":
-			// 显示副本数和状态
-			spec, found, _ := unstructured.NestedMap(item.Object, "spec")
-			if found {
-				replicas, exists, _ := unstructured.NestedInt64(spec, "replicas")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Replicas: %d\n", replicas))
-				}
-			}
-
-			status, found, _ := unstructured.NestedMap(item.Object, "status")
-			if found {
-				availableReplicas, exists, _ := unstructured.NestedInt64(status, "availableReplicas")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Available: %d\n", availableReplicas))
-				}
-
-				readyReplicas, exists, _ := unstructured.NestedInt64(status, "readyReplicas")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Ready: %d\n", readyReplicas))
-				}
-			}
-
-		case "StatefulSet":
-			// 显示副本数和状态
-			spec, found, _ := unstructured.NestedMap(item.Object, "spec")
-			if found {
-				replicas, exists, _ := unstructured.NestedInt64(spec, "replicas")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Replicas: %d\n", replicas))
-				}
-			}
-
-		case "DaemonSet":
-			// 显示节点调度情况
-			status, found, _ := unstructured.NestedMap(item.Object, "status")
-			if found {
-				numberReady, exists, _ := unstructured.NestedInt64(status, "numberReady")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Ready: %d\n", numberReady))
-				}
-
-				desiredNumberScheduled, exists, _ := unstructured.NestedInt64(status, "desiredNumberScheduled")
-				if exists {
-					result.WriteString(fmt.Sprintf("  Desired: %d\n", desiredNumberScheduled))
-				}
-			}
+		result.WriteString(fmt.Sprintf("- %s\n", item.GetName()))
+		writeAppsKindDetails(&result, kind, &item)
+		if showLabels {
+			writeSortedLabels(&result, item.GetLabels())
 		}
-
-		// 显示通用标签信息
-		if len(labels) > 0 {
-			result.WriteString("  Labels:\n")
-			for k, v := range labels {
-				result.WriteString(fmt.Sprintf("    %s: %s\n", k, v))
-			}
-		}
-
 		result.WriteString("\n")
 	}
 
 	h.handler.Log.Info("Apps resources listed successfully",
-		"kind", kind,
-		"namespace", namespace,
-		"count", len(list.Items),
+		logger.String("kind", kind),
+		logger.String("namespace", namespace),
+		logger.Int("count", len(list.Items)),
 	)
 
 	return &mcp.CallToolResult{
@@ -189,7 +133,6 @@ func (h *ResourceHandlerImpl) ListResources(
 	}, nil
 }
 
-// GetResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) GetResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
@@ -197,7 +140,6 @@ func (h *ResourceHandlerImpl) GetResource(
 	return h.baseHandler.GetResource(ctx, request)
 }
 
-// DescribeResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) DescribeResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
@@ -205,7 +147,6 @@ func (h *ResourceHandlerImpl) DescribeResource(
 	return h.baseHandler.DescribeResource(ctx, request)
 }
 
-// CreateResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) CreateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
@@ -213,7 +154,6 @@ func (h *ResourceHandlerImpl) CreateResource(
 	return h.baseHandler.CreateResource(ctx, request)
 }
 
-// UpdateResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) UpdateResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
@@ -221,10 +161,80 @@ func (h *ResourceHandlerImpl) UpdateResource(
 	return h.baseHandler.UpdateResource(ctx, request)
 }
 
-// DeleteResource 实现ResourceHandler接口
 func (h *ResourceHandlerImpl) DeleteResource(
 	ctx context.Context,
 	request mcp.CallToolRequest,
 ) (*mcp.CallToolResult, error) {
 	return h.baseHandler.DeleteResource(ctx, request)
+}
+
+func (h *ResourceHandlerImpl) parseListArguments(
+	request mcp.CallToolRequest,
+) (
+	kind string,
+	apiVersion string,
+	namespace string,
+	labelSelector string,
+	showLabels bool,
+	errResult *mcp.CallToolResult,
+) {
+	arguments := request.GetArguments()
+
+	kind, _ = arguments["kind"].(string)
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return "", "", "", "", false, utils.NewErrorToolResult("kind is required")
+	}
+
+	apiVersion, _ = arguments["apiVersion"].(string)
+	apiVersion = strings.TrimSpace(apiVersion)
+	if apiVersion == "" {
+		apiVersion = defaultAppsAPIVersion
+	}
+
+	namespaceArg, _ := arguments["namespace"].(string)
+	namespace = h.baseHandler.GetNamespaceWithDefault(strings.TrimSpace(namespaceArg))
+
+	labelSelector, _ = arguments["labelSelector"].(string)
+	labelSelector = strings.TrimSpace(labelSelector)
+
+	showLabels, _ = arguments["showLabels"].(bool)
+	return kind, apiVersion, namespace, labelSelector, showLabels, nil
+}
+
+func writeAppsKindDetails(result *strings.Builder, kind string, item *unstructured.Unstructured) {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "deployment":
+		writeNestedInt64(result, "Replicas", item, "spec", "replicas")
+		writeNestedInt64(result, "Available", item, "status", "availableReplicas")
+		writeNestedInt64(result, "Ready", item, "status", "readyReplicas")
+	case "statefulset":
+		writeNestedInt64(result, "Replicas", item, "spec", "replicas")
+		writeNestedInt64(result, "Ready", item, "status", "readyReplicas")
+	case "daemonset":
+		writeNestedInt64(result, "Ready", item, "status", "numberReady")
+		writeNestedInt64(result, "Desired", item, "status", "desiredNumberScheduled")
+	}
+}
+
+func writeNestedInt64(result *strings.Builder, label string, item *unstructured.Unstructured, fields ...string) {
+	if value, exists, _ := unstructured.NestedInt64(item.Object, fields...); exists {
+		result.WriteString(fmt.Sprintf("  %s: %d\n", label, value))
+	}
+}
+
+func writeSortedLabels(result *strings.Builder, labelMap map[string]string) {
+	if len(labelMap) == 0 {
+		return
+	}
+	keys := make([]string, 0, len(labelMap))
+	for key := range labelMap {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	result.WriteString("  Labels:\n")
+	for _, key := range keys {
+		result.WriteString(fmt.Sprintf("    %s: %s\n", key, labelMap[key]))
+	}
 }

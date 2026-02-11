@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +27,7 @@ func (h *UtilityHandler) GetClusterInfo(
 	// 获取服务器版本信息
 	versionInfo, err := h.Client.GetDiscoveryClient().ServerVersion()
 	if err != nil {
-		h.Log.Error("Failed to get server version", "error", err)
+		h.Log.Error("Failed to get server version", logger.Any("error", err))
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to get server version: %v", err)), nil
 	}
 
@@ -63,7 +64,7 @@ func (h *UtilityHandler) GetAPIResources(
 	arguments := request.GetArguments()
 	group, _ := arguments["group"].(string)
 
-	h.Log.Info("Getting API resources", "group", group)
+	h.Log.Info("Getting API resources", logger.String("group", group))
 
 	// 构建响应
 	var result strings.Builder
@@ -80,16 +81,20 @@ func (h *UtilityHandler) GetAPIResources(
 		if err != nil {
 			// 处理部分发现错误，继续使用已获取的资源
 			if !discovery.IsGroupDiscoveryFailedError(err) {
-				h.Log.Error("Failed to get API resources", "error", err)
+				h.Log.Error("Failed to get API resources", logger.Any("error", err))
 				return utils.NewErrorToolResult(fmt.Sprintf("failed to get API resources: %v", err)), nil
 			}
-			h.Log.Warn("Partial API discovery error", "error", err)
+			h.Log.Warn("Partial API discovery error", logger.Any("error", err))
 		}
 	} else {
 		// 获取特定组的资源列表
 		apiGroup, err := h.Client.GetDiscoveryClient().ServerResourcesForGroupVersion(group)
 		if err != nil {
-			h.Log.Error("Failed to get API resources for group", "group", group, "error", err)
+			h.Log.Error(
+				"Failed to get API resources for group",
+				logger.String("group", group),
+				logger.Any("error", err),
+			)
 			return utils.NewErrorToolResult(fmt.Sprintf("failed to get API resources for group %s: %v", group, err)), nil
 		}
 		resourcesList = []*metav1.APIResourceList{apiGroup}
