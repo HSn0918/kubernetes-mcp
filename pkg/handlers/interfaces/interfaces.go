@@ -23,6 +23,8 @@ type APIGroup string
 const (
 	// CoreAPIGroup 代表核心API组 (v1)
 	CoreAPIGroup APIGroup = "core"
+	// ResourceAPIGroup 代表通用资源API组
+	ResourceAPIGroup APIGroup = "resource"
 	// AppsAPIGroup 代表应用API组 (apps/v1)
 	AppsAPIGroup APIGroup = "apps"
 	// BatchAPIGroup 代表批处理API组 (batch/v1)
@@ -103,32 +105,14 @@ type HandlerProvider interface {
 
 // HandlerFactory 提供创建各种资源处理程序的工厂方法
 type HandlerFactory interface {
-	// CreateCoreHandler 创建核心资源处理程序
+	// CreateResourceHandler 创建通用资源处理程序
+	CreateResourceHandler(scope ResourceScope, group APIGroup, prefix string) ResourceHandler
+
+	// CreateCoreHandler 创建核心资源处理程序（有特殊逻辑：Pod日志等）
 	CreateCoreHandler() ResourceHandler
 
-	// CreateAppsHandler 创建应用资源处理程序
+	// CreateAppsHandler 创建应用资源处理程序（有自定义ListResources）
 	CreateAppsHandler() ResourceHandler
-
-	// CreateBatchHandler 创建批处理资源处理程序
-	CreateBatchHandler() ResourceHandler
-
-	// CreateNetworkingHandler 创建网络资源处理程序
-	CreateNetworkingHandler() ResourceHandler
-
-	// CreateStorageHandler 创建存储资源处理程序
-	CreateStorageHandler() ResourceHandler
-
-	// CreateRbacHandler 创建RBAC资源处理程序
-	CreateRbacHandler() ResourceHandler
-
-	// CreatePolicyHandler 创建策略资源处理程序
-	CreatePolicyHandler() ResourceHandler
-
-	// CreateApiExtensionsHandler 创建API扩展资源处理程序
-	CreateApiExtensionsHandler() ResourceHandler
-
-	// CreateAutoscalingHandler 创建自动伸缩资源处理程序
-	CreateAutoscalingHandler() ResourceHandler
 
 	// CreateNamespaceHandler 创建命名空间处理程序
 	CreateNamespaceHandler() NamespaceHandler

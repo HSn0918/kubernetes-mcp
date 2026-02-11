@@ -4,45 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-// formatTimeAgo 格式化事件的时间，显示为相对时间
-func formatTimeAgo(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-
-	now := time.Now()
-	diff := now.Sub(t)
-
-	if diff < time.Minute {
-		seconds := int(diff.Seconds())
-		return fmt.Sprintf("%d second%s ago", seconds, pluralSuffix(seconds))
-	} else if diff < time.Hour {
-		minutes := int(diff.Minutes())
-		return fmt.Sprintf("%d minute%s ago", minutes, pluralSuffix(minutes))
-	} else if diff < 24*time.Hour {
-		hours := int(diff.Hours())
-		return fmt.Sprintf("%d hour%s ago", hours, pluralSuffix(hours))
-	} else {
-		days := int(diff.Hours() / 24)
-		return fmt.Sprintf("%d day%s ago", days, pluralSuffix(days))
-	}
-}
-
-// pluralSuffix 根据数量返回复数后缀
-func pluralSuffix(count int) string {
-	if count == 1 {
-		return ""
-	}
-	return "s"
-}
 
 // hasListVerb 检查资源是否有列表权限
 func hasListVerb(verbs []string) bool {
