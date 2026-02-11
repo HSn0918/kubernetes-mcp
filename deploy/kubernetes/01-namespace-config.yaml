@@ -17,4 +17,3 @@ data:
   log-level: "info"
   log-format: "console"
   allow-origins: "*"
-  base-url: "http://yoururl:8080"  # 替换为实际的服务URL

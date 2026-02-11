@@ -103,8 +103,9 @@ data:
   log-level: "info"         # 日志级别
   log-format: "console"     # 日志格式
   allow-origins: "*"        # CORS 允许的来源
-  base-url: "http://yoururl:8080"  # 服务 URL
 ```
+
+当前 Kubernetes 清单默认使用 `streamable` 传输模式，MCP 端点为 `POST /mcp`。
 
 ### 修改镜像设置
 

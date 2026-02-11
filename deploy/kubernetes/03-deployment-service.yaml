@@ -19,18 +19,17 @@ spec:
       containers:
         - name: kubernetes-mcp-container
           image: hsn0918/kubernetes-mcp:latest
-          imagePullPolicy: Always  # 始终获取最新镜像
+          imagePullPolicy: IfNotPresent  # 优先使用本地镜像，避免外网拉取失败
           command: ["/app/kubernetes-mcp"]
           args:
             - "server"
             - "transport"
-            - "sse"
+            - "streamable"
             - "--port=$(PORT)"
             - "--health-port=$(HEALTH_PORT)"
             - "--log-level=$(LOG_LEVEL)"
             - "--log-format=$(LOG_FORMAT)"
             - "--allow-origins=$(ALLOW_ORIGINS)"
-            - "--base-url=$(BASE_URL)"
           env:
             - name: PORT
               valueFrom:
@@ -57,13 +56,8 @@ spec:
                 configMapKeyRef:
                   name: kubernetes-mcp-config
                   key: allow-origins
-            - name: BASE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: kubernetes-mcp-config
-                  key: base-url
           ports:
-            - name: http-sse
+            - name: http-mcp
               containerPort: 8080
               protocol: TCP
             - name: http-health
@@ -106,8 +100,8 @@ spec:
   selector:
     app: kubernetes-mcp
   ports:
-    - name: http-sse
+    - name: http-mcp
       protocol: TCP
       port: 8080
-      targetPort: http-sse
+      targetPort: http-mcp
   type: ClusterIP
