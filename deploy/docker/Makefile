@@ -15,6 +15,11 @@ DOCKER_IMAGE_LATEST := $(DOCKER_IMAGE_NAME):latest
 # Multi-arch 构建平台
 PLATFORMS ?= linux/amd64,linux/arm64
 
+# 当通过 `make -C deploy` 调用时，当前目录为 deploy/
+# Docker 构建上下文需要指向仓库根目录（..），Dockerfile 位于 deploy/docker/
+DOCKER_BUILD_CONTEXT ?= ..
+DOCKERFILE_PATH ?= ./docker/Dockerfile
+
 # --- Docker 构建目标 ---
 
 # 构建 Docker 镜像 (单架构)
@@ -26,8 +31,8 @@ docker-build:
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(DOCKER_IMAGE) \
 		-t $(DOCKER_IMAGE_LATEST) \
-		-f ./deploy/docker/Dockerfile \
-		.
+		-f $(DOCKERFILE_PATH) \
+		$(DOCKER_BUILD_CONTEXT)
 	@echo "Docker images built locally: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
 
 # 推送 Docker 镜像
@@ -49,8 +54,8 @@ docker-buildx-push:
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(DOCKER_IMAGE) \
 		-t $(DOCKER_IMAGE_LATEST) \
-		-f ./deploy/docker/Dockerfile \
-		.
+		-f $(DOCKERFILE_PATH) \
+		$(DOCKER_BUILD_CONTEXT)
 	@echo "Multi-arch Docker images pushed: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
 
 # 运行 Docker 容器 (sse 模式)
