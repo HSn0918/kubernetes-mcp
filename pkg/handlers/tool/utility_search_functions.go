@@ -78,6 +78,12 @@ func (h *UtilityHandler) SearchResources(
 		h.Log.Warn("Partial API discovery error", logger.Any("error", err))
 	}
 
+	searchQuery, err := parseSearchQuery(query)
+	if err != nil {
+		h.Log.Error("Invalid search query", logger.String("query", query), logger.Any("error", err))
+		return nil, fmt.Errorf("invalid search query: %w", err)
+	}
+
 	// 根据请求筛选需要搜索的资源类型
 	matchingResourcesList := make(map[string][]metav1.APIResource)
 	for _, resList := range resourcesList {
@@ -94,7 +100,7 @@ func (h *UtilityHandler) SearchResources(
 			if len(kinds) > 0 {
 				found := false
 				for _, k := range kinds {
-					if strings.EqualFold(res.Kind, k) {
+					if matchKindFilter(k, res) {
 						found = true
 						break
 					}
@@ -119,7 +125,7 @@ func (h *UtilityHandler) SearchResources(
 
 			// 对于非命名空间资源，只搜索全局范围
 			if !isNamespaced {
-				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, query, "", matchLabels, matchAnnotations)
+				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, searchQuery, "", matchLabels, matchAnnotations)
 				if err != nil {
 					h.Log.Error(
 						"Failed to search resources",
@@ -149,7 +155,7 @@ func (h *UtilityHandler) SearchResources(
 
 			// 对于命名空间资源，在所有指定的命名空间中搜索
 			for _, ns := range namespaces {
-				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, query, ns, matchLabels, matchAnnotations)
+				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, searchQuery, ns, matchLabels, matchAnnotations)
 				if err != nil {
 					h.Log.Error(
 						"Failed to search resources",
@@ -247,4 +253,27 @@ func (h *UtilityHandler) SearchResources(
 			},
 		},
 	}, nil
+}
+
+func matchKindFilter(input string, resource metav1.APIResource) bool {
+	filter := strings.ToLower(strings.TrimSpace(input))
+	if filter == "" {
+		return false
+	}
+
+	kind := strings.ToLower(resource.Kind)
+	name := strings.ToLower(resource.Name)
+
+	if filter == kind || filter == name {
+		return true
+	}
+
+	if strings.TrimSuffix(filter, "s") == kind {
+		return true
+	}
+	if strings.TrimSuffix(name, "s") == filter {
+		return true
+	}
+
+	return false
 }

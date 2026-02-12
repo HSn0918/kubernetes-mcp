@@ -205,6 +205,30 @@ make build
 make test
 ```
 
+## Justfile + One-Click Skill Install
+
+This repo includes a project usage skill at `skills/kubernetes-mcp-usage`.
+
+```bash
+# list just tasks
+just
+
+# common dev tasks
+just build
+just test
+
+# install the project skill into Codex
+just skill-install
+
+# overwrite existing install
+just skill-install-force
+```
+
+Skill install destination:
+`$CODEX_HOME/skills/kubernetes-mcp-usage` (or `~/.codex/skills/kubernetes-mcp-usage` when `CODEX_HOME` is not set).
+
+After installing, restart Codex to pick up the skill.
+
 ## Notes
 
 - Resource operations depend on your cluster API availability and RBAC permissions.

@@ -205,6 +205,30 @@ make build
 make test
 ```
 
+## Justfile 与一键安装 Skill
+
+仓库内已内置项目使用指南 skill：`skills/kubernetes-mcp-usage`。
+
+```bash
+# 查看 just 任务
+just
+
+# 常用开发任务
+just build
+just test
+
+# 一键安装项目 skill 到 Codex
+just skill-install
+
+# 强制覆盖已安装 skill
+just skill-install-force
+```
+
+skill 安装目录：
+`$CODEX_HOME/skills/kubernetes-mcp-usage`（若未设置 `CODEX_HOME`，则为 `~/.codex/skills/kubernetes-mcp-usage`）。
+
+安装后请重启 Codex 以加载新 skill。
+
 ## 说明
 
 - 资源操作能力受集群 API 可用性与 RBAC 权限影响。

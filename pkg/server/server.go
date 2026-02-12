@@ -17,7 +17,7 @@ import (
 
 const (
 	serverName            = "Kubernetes-mcp"
-	serverVersion         = "1.6.0"
+	serverVersion         = "1.8.0"
 	streamableEndpoint    = "/mcp"
 	defaultTransportAlias = "http"
 )

@@ -10,10 +10,13 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -57,7 +60,10 @@ func (h *ResourceHandler) Register(server *server.MCPServer) {
 	server.AddTool(mcp.NewTool(fmt.Sprintf("LIST_%s_RESOURCES", prefix),
 		mcp.WithDescription(fmt.Sprintf("列出指定API组的Kubernetes资源（作用域：%s）。支持按命名空间过滤和标签选择器过滤。适用于资源监控、状态检查、依赖分析等场景。返回资源的基本信息列表。注意：在大规模集群中，建议使用标签选择器限制返回数量。", h.Scope)),
 		mcp.WithString("kind",
-			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写，必须是集群支持的资源类型。"),
+			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写。留空时按发现接口列出当前命名空间可访问的所有资源。"),
+		),
+		mcp.WithString("apiVersion",
+			mcp.Description("API版本，例如：'v1'、'apps/v1'。当kind不为空时建议同时提供，避免同名kind歧义。"),
 		),
 		mcp.WithString("namespace",
 			mcp.Description("资源所在的命名空间。如果是集群级资源则忽略此参数。默认为'default'命名空间。"),
@@ -184,7 +190,9 @@ func (h *ResourceHandler) ListResources(
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespaceArg, _ := arguments["namespace"].(string)
+	fieldSelector, _ := arguments["fieldSelector"].(string)
 	labelSelector, _ := arguments["labelSelector"].(string)
+	showLabels, _ := arguments["showLabels"].(bool)
 
 	// 获取命名空间，使用合适的默认值
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
@@ -193,9 +201,25 @@ func (h *ResourceHandler) ListResources(
 		logger.String("kind", kind),
 		logger.String("apiVersion", apiVersion),
 		logger.String("namespace", namespace),
+		logger.String("fieldSelector", fieldSelector),
 		logger.String("labelSelector", labelSelector),
+		logger.Bool("showLabels", showLabels),
 		logger.Any("group", h.Group),
 	)
+
+	kind = strings.TrimSpace(kind)
+	apiVersion = strings.TrimSpace(apiVersion)
+	fieldSelector = strings.TrimSpace(fieldSelector)
+	labelSelector = strings.TrimSpace(labelSelector)
+
+	// kind为空时，按发现接口遍历所有可列表资源（兼容原有调用方式）
+	if kind == "" {
+		return h.listResourcesByDiscovery(ctx, namespace, fieldSelector, labelSelector, showLabels)
+	}
+
+	if apiVersion == "" {
+		return utils.NewErrorToolResult("missing required parameter: apiVersion is required when kind is specified"), nil
+	}
 
 	// 解析GroupVersionKind
 	gvk := utils.ParseGVK(apiVersion, kind)
@@ -210,6 +234,17 @@ func (h *ResourceHandler) ListResources(
 
 	// 创建列表选项
 	listOptions := &clientpkg.ListOptions{Namespace: namespace}
+	if fieldSelector != "" {
+		selector, err := fields.ParseSelector(fieldSelector)
+		if err != nil {
+			h.Log.Error("Failed to parse field selector",
+				logger.String("fieldSelector", fieldSelector),
+				logger.Any("error", err),
+			)
+			return utils.NewErrorToolResult(fmt.Sprintf("failed to parse field selector: %v", err)), nil
+		}
+		listOptions.FieldSelector = selector
+	}
 	if labelSelector != "" {
 		// 使用 k8s.io/apimachinery/pkg/labels 包创建标签选择器
 		selector, err := labels.Parse(labelSelector)
@@ -253,6 +288,9 @@ func (h *ResourceHandler) ListResources(
 
 	for _, item := range list.Items {
 		result.WriteString(fmt.Sprintf("Name: %s\n", item.GetName()))
+		if showLabels {
+			result.WriteString(fmt.Sprintf("  Labels: %v\n", item.GetLabels()))
+		}
 	}
 
 	h.Log.Info("Resources listed successfully",
@@ -270,6 +308,122 @@ func (h *ResourceHandler) ListResources(
 			},
 		},
 	}, nil
+}
+
+func (h *ResourceHandler) listResourcesByDiscovery(
+	ctx context.Context,
+	namespace string,
+	fieldSelector string,
+	labelSelector string,
+	showLabels bool,
+) (*mcp.CallToolResult, error) {
+	_, resourcesList, err := h.Client.GetDiscoveryClient().ServerGroupsAndResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		h.Log.Error("Failed to discover API resources", logger.Any("error", err))
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to discover API resources: %v", err)), nil
+	}
+	if err != nil {
+		h.Log.Warn("Partial API discovery error", logger.Any("error", err))
+	}
+
+	listOptions := metav1.ListOptions{
+		FieldSelector: fieldSelector,
+		LabelSelector: labelSelector,
+	}
+
+	var (
+		totalKinds int
+		totalItems int
+		result     strings.Builder
+	)
+
+	for _, resourceList := range resourcesList {
+		groupVersion := resourceList.GroupVersion
+		gv, parseErr := schema.ParseGroupVersion(groupVersion)
+		if parseErr != nil {
+			h.Log.Warn("Skipping invalid groupVersion", logger.String("groupVersion", groupVersion), logger.Any("error", parseErr))
+			continue
+		}
+
+		for _, resource := range resourceList.APIResources {
+			if strings.Contains(resource.Name, "/") || !containsVerb(resource.Verbs, "list") {
+				continue
+			}
+
+			gvr := schema.GroupVersionResource{
+				Group:    gv.Group,
+				Version:  gv.Version,
+				Resource: resource.Name,
+			}
+
+			var list *unstructured.UnstructuredList
+			if resource.Namespaced {
+				list, err = h.Client.GetDynamicClient().Resource(gvr).Namespace(namespace).List(ctx, listOptions)
+			} else {
+				list, err = h.Client.GetDynamicClient().Resource(gvr).List(ctx, listOptions)
+			}
+			if err != nil {
+				continue
+			}
+			if len(list.Items) == 0 {
+				continue
+			}
+
+			totalKinds++
+			totalItems += len(list.Items)
+			scope := "cluster"
+			if resource.Namespaced {
+				scope = namespace
+			}
+
+			result.WriteString(fmt.Sprintf(
+				"Kind: %s (apiVersion: %s, resource: %s, scope: %s, count: %d)\n",
+				resource.Kind,
+				groupVersion,
+				resource.Name,
+				scope,
+				len(list.Items),
+			))
+
+			for _, item := range list.Items {
+				result.WriteString(fmt.Sprintf("- %s\n", item.GetName()))
+				if showLabels {
+					result.WriteString(fmt.Sprintf("  Labels: %v\n", item.GetLabels()))
+				}
+			}
+			result.WriteString("\n")
+		}
+	}
+
+	if totalItems == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("Found 0 resources in namespace %s", namespace),
+				},
+			},
+		}, nil
+	}
+
+	header := fmt.Sprintf("Found %d resources across %d kinds in namespace %s\n\n", totalItems, totalKinds, namespace)
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: header + result.String(),
+			},
+		},
+	}, nil
+}
+
+func containsVerb(verbs []string, target string) bool {
+	for _, verb := range verbs {
+		if verb == target {
+			return true
+		}
+	}
+	return false
 }
 
 // GetResource 实现通用的资源获取功能
