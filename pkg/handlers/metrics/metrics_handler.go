@@ -9,6 +9,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -40,7 +41,7 @@ func NewMetricsHandler(client kubernetes.Client) interfaces.ToolHandler {
 
 // Handle calls the appropriate handler function based on the request method
 func (h *MetricsHandler) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	h.Log.Info("Handle called for metrics handler, method: ", request.Method)
+	h.Log.Info("Handle called for metrics handler", logger.String("method", request.Method))
 
 	switch request.Method {
 	case GET_NODE_METRICS:
@@ -189,10 +190,10 @@ func (h *MetricsHandler) GetNodeMetrics(
 	labelSelector, _ := arguments["labelSelector"].(string)
 
 	h.Log.Info("Getting node metrics",
-		"nodeName", nodeName,
-		"sortBy", sortByStr,
-		"fieldSelector", fieldSelector,
-		"labelSelector", labelSelector,
+		logger.String("nodeName", nodeName),
+		logger.String("sortBy", sortByStr),
+		logger.String("fieldSelector", fieldSelector),
+		logger.String("labelSelector", labelSelector),
 	)
 
 	var nodeMetrics []models.NodeMetricInfo
@@ -306,12 +307,12 @@ func (h *MetricsHandler) GetPodMetrics(
 	labelSelector, _ := arguments["labelSelector"].(string)
 
 	h.Log.Info("Getting pod metrics",
-		"namespace", namespace,
-		"podName", podName,
-		"sortBy", sortByStr,
-		"limit", limit,
-		"fieldSelector", fieldSelector,
-		"labelSelector", labelSelector,
+		logger.String("namespace", namespace),
+		logger.String("podName", podName),
+		logger.String("sortBy", sortByStr),
+		logger.Any("limit", limit),
+		logger.String("fieldSelector", fieldSelector),
+		logger.String("labelSelector", labelSelector),
 	)
 
 	// Prepare options
@@ -402,10 +403,10 @@ func (h *MetricsHandler) GetResourceMetrics(
 	labelSelector, _ := arguments["labelSelector"].(string)
 
 	h.Log.Info("Getting resource metrics",
-		"resourceType", resourceType,
-		"namespace", namespace,
-		"fieldSelector", fieldSelector,
-		"labelSelector", labelSelector,
+		logger.String("resourceType", resourceType),
+		logger.String("namespace", namespace),
+		logger.String("fieldSelector", fieldSelector),
+		logger.String("labelSelector", labelSelector),
 	)
 
 	// Prepare options
@@ -524,11 +525,11 @@ func (h *MetricsHandler) GetTopConsumers(
 	labelSelector, _ := arguments["labelSelector"].(string)
 
 	h.Log.Info("Getting top consumers",
-		"resourceType", resourceType,
-		"namespace", namespace,
-		"limit", limit,
-		"fieldSelector", fieldSelector,
-		"labelSelector", labelSelector,
+		logger.String("resourceType", resourceType),
+		logger.String("namespace", namespace),
+		logger.Any("limit", limit),
+		logger.String("fieldSelector", fieldSelector),
+		logger.String("labelSelector", labelSelector),
 	)
 
 	// Validate resource type

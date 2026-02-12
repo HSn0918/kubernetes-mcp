@@ -38,20 +38,8 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // readyzHandler handles readiness probes.
-// Checks if the application is ready to serve requests.
-// Here we check our atomic 'isReady' flag.
-// A more complex check could verify dependencies like the K8s client.
 func readyzHandler(w http.ResponseWriter, r *http.Request) {
 	if atomic.LoadInt32(&isReady) == 1 {
-		// Optional: Add checks for critical dependencies like Kubernetes client connection
-		// k8sClient := client.GetClient() // Get the initialized client
-		// if k8sClient == nil {
-		// 	http.Error(w, "Kubernetes client not initialized", http.StatusServiceUnavailable)
-		//  log.Warn("Readiness check failed: K8s client not initialized")
-		// 	return
-		// }
-		// Add a simple check, e.g., try listing namespaces with a timeout (be careful not to overload API server)
-
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	} else {
@@ -63,8 +51,8 @@ func readyzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartHealthServer starts a simple HTTP server for health checks on a separate port.
-func StartHealthServer(port int, logger logger.Logger) {
-	log = logger // Store logger for handlers
+func StartHealthServer(port int, lg logger.Logger) {
+	log = lg // Store logger for handlers
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler)
@@ -74,11 +62,11 @@ func StartHealthServer(port int, logger logger.Logger) {
 		Handler: mux,
 	}
 
-	log.Info("Starting health check server", "port", port)
+	log.Info("Starting health check server", logger.Int("port", port))
 	// Run the server in a separate goroutine so it doesn't block the main application
 	go func() {
 		if err := healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("Health check server failed", "error", err)
+			log.Error("Health check server failed", logger.Any("error", err))
 		}
 	}()
 

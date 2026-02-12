@@ -14,6 +14,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
@@ -52,8 +53,8 @@ func (h *NodeHandlerImpl) Handle(ctx context.Context, request mcp.CallToolReques
 // Register 实现接口方法
 func (h *NodeHandlerImpl) Register(server *server.MCPServer) {
 	h.Log.Info("Registering node handlers",
-		"scope", h.Scope,
-		"apiGroup", h.Group,
+		logger.Any("scope", h.Scope),
+		logger.Any("apiGroup", h.Group),
 	)
 
 	// 注册列出节点工具
@@ -85,7 +86,7 @@ func (h *NodeHandlerImpl) ListNodes(
 	// 获取所有节点
 	err := h.Client.List(ctx, nodes)
 	if err != nil {
-		h.Log.Error("Failed to list nodes", "error", err)
+		h.Log.Error("Failed to list nodes", logger.Any("error", err))
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to list nodes: %v", err)), nil
 	}
 
@@ -183,7 +184,7 @@ func (h *NodeHandlerImpl) ListNodes(
 		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
-	h.Log.Info("Nodes listed successfully", "count", len(nodes.Items))
+	h.Log.Info("Nodes listed successfully", logger.Int("count", len(nodes.Items)))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{

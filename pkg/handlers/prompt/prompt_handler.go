@@ -12,6 +12,7 @@ import (
 	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/base"
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 )
 
@@ -41,7 +42,7 @@ func NewPromptHandler(client kubernetes.Client) *PromptHandler {
 
 // Handle 处理工具请求
 func (h *PromptHandler) Handle(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	h.Log.Info("Handle called for prompt handler, method: ", request.Method)
+	h.Log.Info("Handle called for prompt handler", logger.String("method", request.Method))
 
 	// 根据方法名称分发到相应的处理函数
 	switch request.Method {

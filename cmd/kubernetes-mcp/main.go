@@ -10,25 +10,16 @@ import (
 )
 
 func main() {
-	// 初始化配置
 	cfg := config.NewDefaultConfig()
-
-	// 初始化日志
 	logger.InitializeDefaultLogger(cfg.LogLevel, cfg.LogFormat)
 	log := logger.GetLogger()
-
-	// 初始化客户端
 	if err := kubernetes.InitializeDefaultClient(cfg); err != nil {
-		log.Error("Failed to initialize Kubernetes client", "error", err)
+		log.Error("Failed to initialize Kubernetes client", logger.Any("error", err))
 		os.Exit(1)
 	}
-
-	// 创建命令行应用
 	rootCmd := app.NewRootCommand(cfg)
-
-	// 执行根命令
 	if err := rootCmd.Execute(); err != nil {
-		log.Error("Failed to execute root command", "error", err)
+		log.Error("Failed to execute root command", logger.Any("error", err))
 		os.Exit(1)
 	}
 }

@@ -64,12 +64,12 @@ run-sse: build
 # --- 部署相关目标（重定向到deploy目录） ---
 
 # Docker 构建 (重定向到deploy目录)
-docker-build: export VERSION=$(VERSION)
-docker-build: export COMMIT=$(COMMIT)
-docker-build: export BUILD_DATE=$(BUILD_DATE)
 docker-build: build
 	@echo ">>> 重定向到deploy目录的Docker构建..."
-	$(MAKE) -C $(DEPLOY_DIR) docker-build
+	$(MAKE) -C $(DEPLOY_DIR) docker-build \
+		VERSION="$(VERSION)" \
+		COMMIT="$(COMMIT)" \
+		BUILD_DATE="$(BUILD_DATE)"
 
 # Docker 推送
 docker-push:
@@ -77,12 +77,12 @@ docker-push:
 	$(MAKE) -C $(DEPLOY_DIR) docker-push
 
 # 多架构Docker构建并推送
-docker-buildx-push: export VERSION=$(VERSION)
-docker-buildx-push: export COMMIT=$(COMMIT)
-docker-buildx-push: export BUILD_DATE=$(BUILD_DATE)
 docker-buildx-push: build
 	@echo ">>> 重定向到deploy目录的多架构Docker构建与推送..."
-	$(MAKE) -C $(DEPLOY_DIR) docker-buildx-push
+	$(MAKE) -C $(DEPLOY_DIR) docker-buildx-push \
+		VERSION="$(VERSION)" \
+		COMMIT="$(COMMIT)" \
+		BUILD_DATE="$(BUILD_DATE)"
 
 # 运行Docker容器 (sse模式)
 docker-run-sse:

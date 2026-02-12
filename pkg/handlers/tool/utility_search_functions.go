@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/mark3labs/mcp-go/mcp"
 	corev1 "k8s.io/api/core/v1"
@@ -27,11 +28,11 @@ func (h *UtilityHandler) SearchResources(
 	matchAnnotations, _ := arguments["matchAnnotations"].(bool)
 
 	h.Log.Info("Searching resources",
-		"query", query,
-		"namespaces", namespacesStr,
-		"kinds", kindsStr,
-		"matchLabels", matchLabels,
-		"matchAnnotations", matchAnnotations,
+		logger.String("query", query),
+		logger.String("namespaces", namespacesStr),
+		logger.String("kinds", kindsStr),
+		logger.Bool("matchLabels", matchLabels),
+		logger.Bool("matchAnnotations", matchAnnotations),
 	)
 
 	// 解析命名空间列表
@@ -57,7 +58,7 @@ func (h *UtilityHandler) SearchResources(
 		nsList := &corev1.NamespaceList{}
 		err := h.Client.List(ctx, nsList)
 		if err != nil {
-			h.Log.Error("Failed to list namespaces", "error", err)
+			h.Log.Error("Failed to list namespaces", logger.Any("error", err))
 			return nil, fmt.Errorf("failed to list namespaces: %w", err)
 		}
 		namespaces = make([]string, 0, len(nsList.Items))
@@ -71,10 +72,16 @@ func (h *UtilityHandler) SearchResources(
 	if err != nil {
 		// 处理部分发现错误，继续使用已获取的资源
 		if !discovery.IsGroupDiscoveryFailedError(err) {
-			h.Log.Error("Failed to get API resources", "error", err)
+			h.Log.Error("Failed to get API resources", logger.Any("error", err))
 			return nil, fmt.Errorf("failed to get API resources: %w", err)
 		}
-		h.Log.Warn("Partial API discovery error", "error", err)
+		h.Log.Warn("Partial API discovery error", logger.Any("error", err))
+	}
+
+	searchQuery, err := parseSearchQuery(query)
+	if err != nil {
+		h.Log.Error("Invalid search query", logger.String("query", query), logger.Any("error", err))
+		return nil, fmt.Errorf("invalid search query: %w", err)
 	}
 
 	// 根据请求筛选需要搜索的资源类型
@@ -93,7 +100,7 @@ func (h *UtilityHandler) SearchResources(
 			if len(kinds) > 0 {
 				found := false
 				for _, k := range kinds {
-					if strings.EqualFold(res.Kind, k) {
+					if matchKindFilter(k, res) {
 						found = true
 						break
 					}
@@ -118,9 +125,14 @@ func (h *UtilityHandler) SearchResources(
 
 			// 对于非命名空间资源，只搜索全局范围
 			if !isNamespaced {
-				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, query, "", matchLabels, matchAnnotations)
+				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, searchQuery, "", matchLabels, matchAnnotations)
 				if err != nil {
-					h.Log.Error("Failed to search resources", "error", err, "groupVersion", groupVersion, "resource", resource.Name)
+					h.Log.Error(
+						"Failed to search resources",
+						logger.Any("error", err),
+						logger.String("groupVersion", groupVersion),
+						logger.String("resource", resource.Name),
+					)
 					continue
 				}
 				// 添加到结果中
@@ -143,9 +155,15 @@ func (h *UtilityHandler) SearchResources(
 
 			// 对于命名空间资源，在所有指定的命名空间中搜索
 			for _, ns := range namespaces {
-				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, query, ns, matchLabels, matchAnnotations)
+				rs, err := searchResourcesInNamespace(ctx, h, groupVersion, resource, searchQuery, ns, matchLabels, matchAnnotations)
 				if err != nil {
-					h.Log.Error("Failed to search resources", "error", err, "namespace", ns, "groupVersion", groupVersion, "resource", resource.Name)
+					h.Log.Error(
+						"Failed to search resources",
+						logger.Any("error", err),
+						logger.String("namespace", ns),
+						logger.String("groupVersion", groupVersion),
+						logger.String("resource", resource.Name),
+					)
 					continue
 				}
 				// 添加到结果中
@@ -219,7 +237,7 @@ func (h *UtilityHandler) SearchResources(
 	// 序列化为JSON
 	resultsJSON, err := json.Marshal(searchResults)
 	if err != nil {
-		h.Log.Error("Failed to marshal search results", "error", err)
+		h.Log.Error("Failed to marshal search results", logger.Any("error", err))
 		// 继续执行，只返回文本格式
 	} else {
 		// 添加JSON格式数据
@@ -235,4 +253,27 @@ func (h *UtilityHandler) SearchResources(
 			},
 		},
 	}, nil
+}
+
+func matchKindFilter(input string, resource metav1.APIResource) bool {
+	filter := strings.ToLower(strings.TrimSpace(input))
+	if filter == "" {
+		return false
+	}
+
+	kind := strings.ToLower(resource.Kind)
+	name := strings.ToLower(resource.Name)
+
+	if filter == kind || filter == name {
+		return true
+	}
+
+	if strings.TrimSuffix(filter, "s") == kind {
+		return true
+	}
+	if strings.TrimSuffix(name, "s") == filter {
+		return true
+	}
+
+	return false
 }

@@ -10,14 +10,18 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/discovery"
 	clientpkg "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/hsn0918/kubernetes-mcp/pkg/handlers/interfaces"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/hsn0918/kubernetes-mcp/pkg/models"
 	"github.com/hsn0918/kubernetes-mcp/pkg/utils"
 )
@@ -48,15 +52,18 @@ func NewResourceHandlerPtr(h Handler, resourcePrefix string) *ResourceHandler {
 func (h *ResourceHandler) Register(server *server.MCPServer) {
 	prefix := h.resourcePrefix
 	h.Log.Info("Registering resource handlers",
-		"scope", h.Scope,
-		"apiGroup", h.Group,
-		"prefix", prefix,
+		logger.Any("scope", h.Scope),
+		logger.Any("apiGroup", h.Group),
+		logger.String("prefix", prefix),
 	)
 	// 注册列出资源工具
 	server.AddTool(mcp.NewTool(fmt.Sprintf("LIST_%s_RESOURCES", prefix),
 		mcp.WithDescription(fmt.Sprintf("列出指定API组的Kubernetes资源（作用域：%s）。支持按命名空间过滤和标签选择器过滤。适用于资源监控、状态检查、依赖分析等场景。返回资源的基本信息列表。注意：在大规模集群中，建议使用标签选择器限制返回数量。", h.Scope)),
 		mcp.WithString("kind",
-			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写，必须是集群支持的资源类型。"),
+			mcp.Description("资源类型，例如：'Pod'、'Deployment'、'Service'等。区分大小写。留空时按发现接口列出当前命名空间可访问的所有资源。"),
+		),
+		mcp.WithString("apiVersion",
+			mcp.Description("API版本，例如：'v1'、'apps/v1'。当kind不为空时建议同时提供，避免同名kind歧义。"),
 		),
 		mcp.WithString("namespace",
 			mcp.Description("资源所在的命名空间。如果是集群级资源则忽略此参数。默认为'default'命名空间。"),
@@ -165,7 +172,7 @@ func (h *ResourceHandler) GetNamespaceWithDefault(incomingNamespace string) stri
 	// 尝试从客户端配置获取当前命名空间
 	currentNamespace, err := h.Client.GetCurrentNamespace()
 	if err == nil && currentNamespace != "" {
-		h.Log.Debug("Using namespace from kubeconfig", "namespace", currentNamespace)
+		h.Log.Debug("Using namespace from kubeconfig", logger.String("namespace", currentNamespace))
 		return currentNamespace
 	}
 
@@ -183,18 +190,36 @@ func (h *ResourceHandler) ListResources(
 	kind, _ := arguments["kind"].(string)
 	apiVersion, _ := arguments["apiVersion"].(string)
 	namespaceArg, _ := arguments["namespace"].(string)
+	fieldSelector, _ := arguments["fieldSelector"].(string)
 	labelSelector, _ := arguments["labelSelector"].(string)
+	showLabels, _ := arguments["showLabels"].(bool)
 
 	// 获取命名空间，使用合适的默认值
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
 
 	h.Log.Info("Listing resources",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"namespace", namespace,
-		"labelSelector", labelSelector,
-		"group", h.Group,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("namespace", namespace),
+		logger.String("fieldSelector", fieldSelector),
+		logger.String("labelSelector", labelSelector),
+		logger.Bool("showLabels", showLabels),
+		logger.Any("group", h.Group),
 	)
+
+	kind = strings.TrimSpace(kind)
+	apiVersion = strings.TrimSpace(apiVersion)
+	fieldSelector = strings.TrimSpace(fieldSelector)
+	labelSelector = strings.TrimSpace(labelSelector)
+
+	// kind为空时，按发现接口遍历所有可列表资源（兼容原有调用方式）
+	if kind == "" {
+		return h.listResourcesByDiscovery(ctx, namespace, fieldSelector, labelSelector, showLabels)
+	}
+
+	if apiVersion == "" {
+		return utils.NewErrorToolResult("missing required parameter: apiVersion is required when kind is specified"), nil
+	}
 
 	// 解析GroupVersionKind
 	gvk := utils.ParseGVK(apiVersion, kind)
@@ -209,13 +234,24 @@ func (h *ResourceHandler) ListResources(
 
 	// 创建列表选项
 	listOptions := &clientpkg.ListOptions{Namespace: namespace}
+	if fieldSelector != "" {
+		selector, err := fields.ParseSelector(fieldSelector)
+		if err != nil {
+			h.Log.Error("Failed to parse field selector",
+				logger.String("fieldSelector", fieldSelector),
+				logger.Any("error", err),
+			)
+			return utils.NewErrorToolResult(fmt.Sprintf("failed to parse field selector: %v", err)), nil
+		}
+		listOptions.FieldSelector = selector
+	}
 	if labelSelector != "" {
 		// 使用 k8s.io/apimachinery/pkg/labels 包创建标签选择器
 		selector, err := labels.Parse(labelSelector)
 		if err != nil {
 			h.Log.Error("Failed to parse label selector",
-				"labelSelector", labelSelector,
-				"error", err,
+				logger.String("labelSelector", labelSelector),
+				logger.Any("error", err),
 			)
 			return utils.NewErrorToolResult(fmt.Sprintf("failed to parse label selector: %v", err)), nil
 		}
@@ -228,10 +264,10 @@ func (h *ResourceHandler) ListResources(
 	err := h.Client.List(ctx, list, listOptions)
 	if err != nil {
 		h.Log.Error("Failed to list resources",
-			"kind", kind,
-			"namespace", namespace,
-			"labelSelector", labelSelector,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("namespace", namespace),
+			logger.String("labelSelector", labelSelector),
+			logger.Any("error", err),
 		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to list resources: %v", err)), nil
 	}
@@ -252,13 +288,16 @@ func (h *ResourceHandler) ListResources(
 
 	for _, item := range list.Items {
 		result.WriteString(fmt.Sprintf("Name: %s\n", item.GetName()))
+		if showLabels {
+			result.WriteString(fmt.Sprintf("  Labels: %v\n", item.GetLabels()))
+		}
 	}
 
 	h.Log.Info("Resources listed successfully",
-		"kind", kind,
-		"namespace", namespace,
-		"labelSelector", labelSelector,
-		"count", len(list.Items),
+		logger.String("kind", kind),
+		logger.String("namespace", namespace),
+		logger.String("labelSelector", labelSelector),
+		logger.Int("count", len(list.Items)),
 	)
 
 	return &mcp.CallToolResult{
@@ -269,6 +308,122 @@ func (h *ResourceHandler) ListResources(
 			},
 		},
 	}, nil
+}
+
+func (h *ResourceHandler) listResourcesByDiscovery(
+	ctx context.Context,
+	namespace string,
+	fieldSelector string,
+	labelSelector string,
+	showLabels bool,
+) (*mcp.CallToolResult, error) {
+	_, resourcesList, err := h.Client.GetDiscoveryClient().ServerGroupsAndResources()
+	if err != nil && !discovery.IsGroupDiscoveryFailedError(err) {
+		h.Log.Error("Failed to discover API resources", logger.Any("error", err))
+		return utils.NewErrorToolResult(fmt.Sprintf("failed to discover API resources: %v", err)), nil
+	}
+	if err != nil {
+		h.Log.Warn("Partial API discovery error", logger.Any("error", err))
+	}
+
+	listOptions := metav1.ListOptions{
+		FieldSelector: fieldSelector,
+		LabelSelector: labelSelector,
+	}
+
+	var (
+		totalKinds int
+		totalItems int
+		result     strings.Builder
+	)
+
+	for _, resourceList := range resourcesList {
+		groupVersion := resourceList.GroupVersion
+		gv, parseErr := schema.ParseGroupVersion(groupVersion)
+		if parseErr != nil {
+			h.Log.Warn("Skipping invalid groupVersion", logger.String("groupVersion", groupVersion), logger.Any("error", parseErr))
+			continue
+		}
+
+		for _, resource := range resourceList.APIResources {
+			if strings.Contains(resource.Name, "/") || !containsVerb(resource.Verbs, "list") {
+				continue
+			}
+
+			gvr := schema.GroupVersionResource{
+				Group:    gv.Group,
+				Version:  gv.Version,
+				Resource: resource.Name,
+			}
+
+			var list *unstructured.UnstructuredList
+			if resource.Namespaced {
+				list, err = h.Client.GetDynamicClient().Resource(gvr).Namespace(namespace).List(ctx, listOptions)
+			} else {
+				list, err = h.Client.GetDynamicClient().Resource(gvr).List(ctx, listOptions)
+			}
+			if err != nil {
+				continue
+			}
+			if len(list.Items) == 0 {
+				continue
+			}
+
+			totalKinds++
+			totalItems += len(list.Items)
+			scope := "cluster"
+			if resource.Namespaced {
+				scope = namespace
+			}
+
+			result.WriteString(fmt.Sprintf(
+				"Kind: %s (apiVersion: %s, resource: %s, scope: %s, count: %d)\n",
+				resource.Kind,
+				groupVersion,
+				resource.Name,
+				scope,
+				len(list.Items),
+			))
+
+			for _, item := range list.Items {
+				result.WriteString(fmt.Sprintf("- %s\n", item.GetName()))
+				if showLabels {
+					result.WriteString(fmt.Sprintf("  Labels: %v\n", item.GetLabels()))
+				}
+			}
+			result.WriteString("\n")
+		}
+	}
+
+	if totalItems == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("Found 0 resources in namespace %s", namespace),
+				},
+			},
+		}, nil
+	}
+
+	header := fmt.Sprintf("Found %d resources across %d kinds in namespace %s\n\n", totalItems, totalKinds, namespace)
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: header + result.String(),
+			},
+		},
+	}, nil
+}
+
+func containsVerb(verbs []string, target string) bool {
+	for _, verb := range verbs {
+		if verb == target {
+			return true
+		}
+	}
+	return false
 }
 
 // GetResource 实现通用的资源获取功能
@@ -286,11 +441,11 @@ func (h *ResourceHandler) GetResource(
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
 
 	h.Log.Info("Getting resource",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"name", name,
-		"namespace", namespace,
-		"group", h.Group,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
+		logger.Any("group", h.Group),
 	)
 
 	// 解析GroupVersionKind
@@ -304,10 +459,10 @@ func (h *ResourceHandler) GetResource(
 	err := h.Client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
 	if err != nil {
 		h.Log.Error("Failed to get resource",
-			"kind", kind,
-			"name", name,
-			"namespace", namespace,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.String("namespace", namespace),
+			logger.Any("error", err),
 		)
 		if errors.IsNotFound(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
@@ -319,17 +474,17 @@ func (h *ResourceHandler) GetResource(
 	yamlData, err := yaml.Marshal(obj.Object)
 	if err != nil {
 		h.Log.Error("Failed to marshal resource to YAML",
-			"kind", kind,
-			"name", name,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.Any("error", err),
 		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to marshal to YAML: %v", err)), nil
 	}
 
 	h.Log.Info("Resource retrieved successfully",
-		"kind", kind,
-		"name", name,
-		"namespace", namespace,
+		logger.String("kind", kind),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
 	)
 
 	return &mcp.CallToolResult{
@@ -357,11 +512,11 @@ func (h *ResourceHandler) DescribeResource(
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
 
 	h.Log.Info("Describing resource",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"name", name,
-		"namespace", namespace,
-		"group", h.Group,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
+		logger.Any("group", h.Group),
 	)
 
 	// 解析GroupVersionKind
@@ -375,10 +530,10 @@ func (h *ResourceHandler) DescribeResource(
 	err := h.Client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name}, obj)
 	if err != nil {
 		h.Log.Error("Failed to get resource for description",
-			"kind", kind,
-			"name", name,
-			"namespace", namespace,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.String("namespace", namespace),
+			logger.Any("error", err),
 		)
 		if errors.IsNotFound(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
@@ -393,17 +548,17 @@ func (h *ResourceHandler) DescribeResource(
 	jsonData, err := json.MarshalIndent(description, "", "  ")
 	if err != nil {
 		h.Log.Error("Failed to marshal resource description to JSON",
-			"kind", kind,
-			"name", name,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.Any("error", err),
 		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to marshal to JSON: %v", err)), nil
 	}
 
 	h.Log.Info("Resource described successfully",
-		"kind", kind,
-		"name", name,
-		"namespace", namespace,
+		logger.String("kind", kind),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
 	)
 
 	return &mcp.CallToolResult{
@@ -419,9 +574,9 @@ func (h *ResourceHandler) DescribeResource(
 // CreateResource 创建资源
 func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	h.Log.Info("Creating resource",
-		"method", request.Method,
-		"handler_group", h.Group,
-		"handler_type", fmt.Sprintf("%T", h),
+		logger.String("method", request.Method),
+		logger.Any("handler_group", h.Group),
+		logger.String("handler_type", fmt.Sprintf("%T", h)),
 	)
 
 	// 解析YAML
@@ -430,8 +585,8 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 	yamlStr, _ := arguments["yaml"].(string)
 	if err := yaml.Unmarshal([]byte(yamlStr), obj); err != nil {
 		h.Log.Error("Failed to parse YAML",
-			"error", err,
-			"yaml", yamlStr,
+			logger.Any("error", err),
+			logger.String("yaml", yamlStr),
 		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
@@ -439,27 +594,27 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 	// 记录资源信息
 	gvk := obj.GroupVersionKind()
 	h.Log.Info("Parsed resource",
-		"group", gvk.Group,
-		"version", gvk.Version,
-		"kind", gvk.Kind,
-		"expected_group", h.Group,
+		logger.String("group", gvk.Group),
+		logger.String("version", gvk.Version),
+		logger.String("kind", gvk.Kind),
+		logger.Any("expected_group", h.Group),
 	)
 
 	// 获取命名空间
 	if obj.GetNamespace() == "" {
 		defaultNs := h.GetNamespaceWithDefault("")
 		obj.SetNamespace(defaultNs)
-		h.Log.Debug("Empty namespace in resource, setting namespace", "namespace", defaultNs)
+		h.Log.Debug("Empty namespace in resource, setting namespace", logger.String("namespace", defaultNs))
 	}
 
 	// 创建资源
 	if err := h.Client.Create(ctx, obj); err != nil {
 		h.Log.Error("Failed to create resource",
-			"error", err,
-			"group", gvk.Group,
-			"version", gvk.Version,
-			"kind", gvk.Kind,
-			"namespace", obj.GetNamespace(),
+			logger.Any("error", err),
+			logger.String("group", gvk.Group),
+			logger.String("version", gvk.Version),
+			logger.String("kind", gvk.Kind),
+			logger.String("namespace", obj.GetNamespace()),
 		)
 		if errors.IsAlreadyExists(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("resource already exists: %v", err)), nil
@@ -468,11 +623,11 @@ func (h *ResourceHandler) CreateResource(ctx context.Context, request mcp.CallTo
 	}
 
 	h.Log.Info("Resource created successfully",
-		"group", gvk.Group,
-		"version", gvk.Version,
-		"kind", gvk.Kind,
-		"namespace", obj.GetNamespace(),
-		"name", obj.GetName(),
+		logger.String("group", gvk.Group),
+		logger.String("version", gvk.Version),
+		logger.String("kind", gvk.Kind),
+		logger.String("namespace", obj.GetNamespace()),
+		logger.String("name", obj.GetName()),
 	)
 
 	return &mcp.CallToolResult{
@@ -494,44 +649,44 @@ func (h *ResourceHandler) UpdateResource(
 	arguments := request.GetArguments()
 	yamlStr, _ := arguments["yaml"].(string)
 
-	h.Log.Info("Updating resource from YAML", "group", h.Group)
+	h.Log.Info("Updating resource from YAML", logger.Any("group", h.Group))
 
 	// 解析YAML
 	obj := &unstructured.Unstructured{}
 	err := yaml.Unmarshal([]byte(yamlStr), &obj.Object)
 	if err != nil {
-		h.Log.Error("Failed to parse YAML", "error", err)
+		h.Log.Error("Failed to parse YAML", logger.Any("error", err))
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to parse YAML: %v", err)), nil
 	}
 	// 如果命名空间为空，使用default或kubeconfig中的
 	if obj.GetNamespace() == "" {
 		defaultNs := h.GetNamespaceWithDefault("")
 		obj.SetNamespace(defaultNs)
-		h.Log.Debug("Empty namespace in resource, setting namespace", "namespace", defaultNs)
+		h.Log.Debug("Empty namespace in resource, setting namespace", logger.String("namespace", defaultNs))
 	}
 
 	h.Log.Debug("Parsed resource from YAML",
-		"kind", obj.GetKind(),
-		"name", obj.GetName(),
-		"namespace", obj.GetNamespace(),
+		logger.String("kind", obj.GetKind()),
+		logger.String("name", obj.GetName()),
+		logger.String("namespace", obj.GetNamespace()),
 	)
 
 	// 更新资源
 	err = h.Client.Update(ctx, obj)
 	if err != nil {
 		h.Log.Error("Failed to update resource",
-			"kind", obj.GetKind(),
-			"name", obj.GetName(),
-			"namespace", obj.GetNamespace(),
-			"error", err,
+			logger.String("kind", obj.GetKind()),
+			logger.String("name", obj.GetName()),
+			logger.String("namespace", obj.GetNamespace()),
+			logger.Any("error", err),
 		)
 		return utils.NewErrorToolResult(fmt.Sprintf("failed to update resource: %v", err)), nil
 	}
 
 	h.Log.Info("Resource updated successfully",
-		"kind", obj.GetKind(),
-		"name", obj.GetName(),
-		"namespace", obj.GetNamespace(),
+		logger.String("kind", obj.GetKind()),
+		logger.String("name", obj.GetName()),
+		logger.String("namespace", obj.GetNamespace()),
 	)
 
 	return &mcp.CallToolResult{
@@ -560,11 +715,11 @@ func (h *ResourceHandler) DeleteResource(
 	namespace := h.GetNamespaceWithDefault(namespaceArg)
 
 	h.Log.Info("Deleting resource",
-		"kind", kind,
-		"apiVersion", apiVersion,
-		"name", name,
-		"namespace", namespace,
-		"group", h.Group,
+		logger.String("kind", kind),
+		logger.String("apiVersion", apiVersion),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
+		logger.Any("group", h.Group),
 	)
 
 	// 解析GroupVersionKind
@@ -580,10 +735,10 @@ func (h *ResourceHandler) DeleteResource(
 	err := h.Client.Delete(ctx, obj)
 	if err != nil {
 		h.Log.Error("Failed to delete resource",
-			"kind", kind,
-			"name", name,
-			"namespace", namespace,
-			"error", err,
+			logger.String("kind", kind),
+			logger.String("name", name),
+			logger.String("namespace", namespace),
+			logger.Any("error", err),
 		)
 		if errors.IsNotFound(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("resource not found (Kind: %s, Name: %s, Namespace: %s)", kind, name, namespace)), nil
@@ -592,9 +747,9 @@ func (h *ResourceHandler) DeleteResource(
 	}
 
 	h.Log.Info("Resource deleted successfully",
-		"kind", kind,
-		"name", name,
-		"namespace", namespace,
+		logger.String("kind", kind),
+		logger.String("name", name),
+		logger.String("namespace", namespace),
 	)
 
 	return &mcp.CallToolResult{

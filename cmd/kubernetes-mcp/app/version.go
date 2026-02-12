@@ -45,9 +45,9 @@ func NewVersionCommand() *cobra.Command {
 			fmt.Print(versionInfo)
 
 			log.Info("Version info displayed",
-				"version", Version,
-				"commit", Commit,
-				"buildDate", BuildDate,
+				logger.String("version", Version),
+				logger.String("commit", Commit),
+				logger.String("buildDate", BuildDate),
 			)
 		},
 	}

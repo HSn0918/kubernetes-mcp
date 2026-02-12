@@ -15,6 +15,12 @@ DOCKER_IMAGE_LATEST := $(DOCKER_IMAGE_NAME):latest
 # Multi-arch 构建平台
 PLATFORMS ?= linux/amd64,linux/arm64
 
+# 当通过 `make -C deploy` 调用时，当前目录为 deploy/
+# Docker 构建上下文需要指向仓库根目录（..），Dockerfile 位于 deploy/docker/
+DOCKER_BUILD_CONTEXT ?= ..
+DOCKERFILE_PATH ?= ./docker/Dockerfile
+BUILDER_NAME ?= kubernetes-mcp-builder
+
 # --- Docker 构建目标 ---
 
 # 构建 Docker 镜像 (单架构)
@@ -26,8 +32,8 @@ docker-build:
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(DOCKER_IMAGE) \
 		-t $(DOCKER_IMAGE_LATEST) \
-		-f ./deploy/docker/Dockerfile \
-		.
+		-f $(DOCKERFILE_PATH) \
+		$(DOCKER_BUILD_CONTEXT)
 	@echo "Docker images built locally: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
 
 # 推送 Docker 镜像
@@ -38,7 +44,7 @@ docker-push:
 	docker push $(DOCKER_IMAGE_LATEST)
 
 # 构建并推送多架构 Docker 镜像
-docker-buildx-push:
+docker-buildx-push: buildx-ensure
 	@echo ">>> Building and pushing multi-arch Docker image for platforms [$(PLATFORMS)]..."
 	@echo "Ensure Buildx is setup and you are logged in via 'docker login'"
 	docker buildx build \
@@ -49,9 +55,19 @@ docker-buildx-push:
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(DOCKER_IMAGE) \
 		-t $(DOCKER_IMAGE_LATEST) \
-		-f ./deploy/docker/Dockerfile \
-		.
+		-f $(DOCKERFILE_PATH) \
+		$(DOCKER_BUILD_CONTEXT)
 	@echo "Multi-arch Docker images pushed: $(DOCKER_IMAGE), $(DOCKER_IMAGE_LATEST)"
+
+# 确保使用支持多架构的 buildx builder（docker-container 驱动）
+buildx-ensure:
+	@echo ">>> Ensuring buildx builder '$(BUILDER_NAME)' (driver=docker-container)..."
+	@if ! docker buildx inspect $(BUILDER_NAME) >/dev/null 2>&1; then \
+		docker buildx create --name $(BUILDER_NAME) --driver docker-container --use; \
+	else \
+		docker buildx use $(BUILDER_NAME); \
+	fi
+	@docker buildx inspect --bootstrap >/dev/null
 
 # 运行 Docker 容器 (sse 模式)
 docker-run-sse:
@@ -59,11 +75,11 @@ docker-run-sse:
 	docker run --rm -p 8080:8080 $(DOCKER_IMAGE_LATEST) server --transport=sse --port=8080
 
 # 帮助信息
-help:
+docker-help:
 	@echo "Docker Build Targets:"
 	@echo "  docker-build         Build single-arch Docker image for the host architecture"
 	@echo "  docker-push          Push the locally built Docker images"
 	@echo "  docker-buildx-push   Build multi-arch Docker image (via buildx) and push"
 	@echo "  docker-run-sse       Run the Docker container in sse mode (port 8080)"
 
-.PHONY: docker-build docker-push docker-buildx-push docker-run-sse help
+.PHONY: docker-build docker-push docker-buildx-push docker-run-sse buildx-ensure docker-help

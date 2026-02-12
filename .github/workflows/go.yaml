@@ -31,7 +31,7 @@ jobs:
       - name: Set up Go (设置 Go 环境)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24' # 指定使用的 Go 版本
+          go-version: '1.25' # 指定使用的 Go 版本
           cache: true # 启用 Go 模块依赖缓存
 
       # 步骤 3: (可选) 显示 Go 版本

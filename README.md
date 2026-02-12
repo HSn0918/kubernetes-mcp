@@ -1,284 +1,235 @@
 # Kubernetes MCP
 
 <div align="center">
-  <img src="logo.png" alt="Kubernetes MCP Logo" width="200">
+  <img src="logo.png" alt="Kubernetes MCP Logo" width="180">
 </div>
 
 English | [中文](README_ZH.md)
 
-✨ A Model Context Protocol (MCP) server implementation designed with Go for interacting with Kubernetes clusters. This server allows MCP-compatible clients to perform Kubernetes operations through defined tools.
+A Kubernetes-focused Model Context Protocol (MCP) server built in Go.
+It exposes Kubernetes operations as MCP tools and supports `stdio`, `sse`, and `streamable` transports.
 
-## 📌 Core Features
+## Why This Project
 
-- 🔹 **MCP Server**: Implements the `mcp-go` library to provide MCP functionality
-- 🔹 **Kubernetes Interaction**: Uses `controller-runtime` client to interact with clusters
-- 🔹 **Transport Methods**: Supports standard I/O (`stdio`), Server-Sent Events (`sse`), and StreamableHTTP (`streamable`) with streaming capabilities
-- 🔹 **Streaming Support**: StreamableHTTP transport provides real-time progress notifications for long-running operations
+- Unified MCP interface for Kubernetes operations
+- Works with both local `kubeconfig` and in-cluster configuration
+- Multiple transports for different integration modes
+- Generic resource CRUD + utility tools + prompts + metrics
+- `slog`-based logging with configurable level/format
 
-## 🛠️ Resource Management Tools
+## Requirements
 
-### 📊 Implemented API Groups
+- Go `1.24+`
+- Access to a Kubernetes cluster
+  - via `--kubeconfig`, or
+  - via in-cluster service account
 
-🔸 **Core API Group (v1)**
-- List, get, describe, create, update, delete operations
-- Cluster-scoped: list namespaces, list nodes
-- Get Pod logs functionality
+## Quick Start
 
-🔸 **Apps API Group (apps/v1)**
-- Full support for Deployment, ReplicaSet, StatefulSet, DaemonSet
-
-🔸 **Batch API Group (batch/v1)**
-- Full support for Job, CronJob
-
-🔸 **Networking API Group (networking.k8s.io/v1)**
-- Full support for Ingress, NetworkPolicy
-
-🔸 **RBAC API Group (rbac.authorization.k8s.io/v1)**
-- Full support for Role, RoleBinding, ClusterRole, ClusterRoleBinding
-
-🔸 **Storage API Group (storage.k8s.io/v1)**
-- Full support for StorageClass, VolumeAttachment
-
-🔸 **Policy API Group (policy/v1beta1)**
-- Full support for PodSecurityPolicy, PodDisruptionBudget
-
-🔸 **API Extensions API Group (apiextensions.k8s.io/v1)**
-- Full support for CustomResourceDefinition
-
-🔸 **Autoscaling API Group (autoscaling/v1)**
-- Full support for HorizontalPodAutoscaler
-
-## 📋 Requirements
-
-- 📌 **Go 1.24**
-- 📌 **Kubernetes cluster access** (via `kubeconfig` or in-cluster service account)
-
-## 📦 Key Dependencies
-
-🧩 **Core Libraries**:
-- `github.com/mark3labs/mcp-go` - MCP protocol implementation
-- `sigs.k8s.io/controller-runtime` - Kubernetes client
-- `k8s.io/client-go` - Core Kubernetes libraries
-- `github.com/spf13/cobra` - CLI structure
-- `go.uber.org/zap` - Logging
-- `sigs.k8s.io/yaml` - YAML processing
-
-## 🔨 Build Methods
-
-### 📥 Build from Source
+### Build
 
 ```bash
 git clone https://github.com/HSn0918/kubernetes-mcp.git
 cd kubernetes-mcp
 go build -o kubernetes-mcp ./cmd/kubernetes-mcp
-./kubernetes-mcp server --transport=sse --port 8080
 ```
 
-### 🐳 Docker Build
+### Run (stdio)
 
 ```bash
-# Build image
-docker build -t kubernetes-mcp:latest \
-  --build-arg VERSION=$(git describe --tags --always) \
-  --build-arg COMMIT=$(git rev-parse HEAD) \
-  --build-arg BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") .
-
-# Run with stdio transport
-docker run -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport stdio
-
-# Run with SSE transport
-docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse
-
-# Run with StreamableHTTP transport (with streaming support)
-docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport streamable
-
-# Run with SSE transport and custom base URL
-docker run -p 8080:8080 -v ~/.kube:/root/.kube kubernetes-mcp:latest server transport sse --base-url="http://your-host:8080"
-
-# View version info
-docker run kubernetes-mcp:latest version
-
-# Specify custom kubeconfig
-docker run -v /path/to/config:/config kubernetes-mcp:latest server transport sse --kubeconfig=/config
+./kubernetes-mcp server transport stdio --kubeconfig ~/.kube/config
 ```
 
-## 🚀 Usage
+### Run (SSE)
 
-### 🔄 Starting the Server
-
-```shell
-# Using standard I/O
-./kubernetes-mcp server transport stdio
-
-# Using SSE (Server-Sent Events)
-./kubernetes-mcp server transport sse --port 8080
-
-# Using StreamableHTTP (with streaming capabilities)
-./kubernetes-mcp server transport streamable --port 8080
-
-# Specifying custom base URL for SSE connections
-./kubernetes-mcp server transport sse --port 8080 --base-url="http://your-server-address:8080"
-
-# Setting CORS allowed origins
-./kubernetes-mcp server transport sse --allow-origins="*"
-
-# Specifying Kubeconfig
-./kubernetes-mcp server transport sse --kubeconfig /path/to/your/kubeconfig
-
-# View version
-./kubernetes-mcp version
+```bash
+./kubernetes-mcp server transport sse \
+  --port 8080 \
+  --health-port 8081 \
+  --allow-origins "*" \
+  --base-url "http://localhost:8080" \
+  --kubeconfig ~/.kube/config
 ```
 
-### ⚙️ Command Structure
+### Run (StreamableHTTP)
 
-The application uses a hierarchical command structure:
-
+```bash
+./kubernetes-mcp server transport streamable \
+  --port 8080 \
+  --health-port 8081 \
+  --allow-origins "*" \
+  --kubeconfig ~/.kube/config
 ```
+
+## CLI Structure
+
+```text
 kubernetes-mcp
 ├── server
 │   └── transport
+│       ├── stdio
 │       ├── sse
-│       │   ├── --port=8080
-│       │   ├── --health-port=8081
-│       │   ├── --base-url="http://example.com:8080"
-│       │   └── --allow-origins="*"
-│       ├── streamable
-│       │   ├── --port=8080
-│       │   ├── --health-port=8081
-│       │   └── --allow-origins="*"
-│       └── stdio
+│       └── streamable
 └── version
 ```
 
-### ⚙️ Configuration Options
+## Configuration Flags
 
-Global options that can be used with any command:
-- 🔧 **Config file**: `--kubeconfig` (path to Kubernetes configuration)
-- 🔧 **Log level**: `--log-level` (debug/info/warn/error)
-- 🔧 **Log format**: `--log-format` (console/json)
+Global flags:
 
-SSE transport specific options:
-- 🔧 **Port**: `--port` (default 8080)
-- 🔧 **Health check port**: `--health-port` (default 8081)
-- 🔧 **Base URL**: `--base-url` (URL clients will use to connect to the server)
-- 🔧 **CORS allowed origins**: `--allow-origins` (comma-separated list or "*" for all)
+- `--log-level` (`debug|info|warn|error`, default `info`)
+- `--log-format` (`console|json`, default `console`)
+- `--kubeconfig` (optional)
 
-StreamableHTTP transport specific options:
-- 🔧 **Port**: `--port` (default 8080)
-- 🔧 **Health check port**: `--health-port` (default 8081)
-- 🔧 **CORS allowed origins**: `--allow-origins` (comma-separated list or "*" for all)
-- 🔧 **Streaming capabilities**: Supports real-time progress notifications for long-running operations
-- 🔧 **Session management**: Stateful sessions for enhanced streaming experience
+Network transport flags (`sse`, `streamable`):
 
-## 🧩 Advanced Features
+- `--port` (default `8080`)
+- `--health-port` (default `8081`)
+- `--allow-origins` (default `*`)
 
-### 🚀 StreamableHTTP Transport Features
+SSE-only flags:
 
-The StreamableHTTP transport mode provides enhanced capabilities for real-time operations:
+- `--base-url` (default `http://localhost:<port>`)
 
-- 🔄 **Real-time Progress Notifications**: Get live updates during long-running operations
-- 🔄 **Session Management**: Stateful sessions maintain context between requests
-- 🔄 **HTTP-based Communication**: Standard HTTP requests with JSON-RPC 2.0 protocol
-- 🔄 **CORS Support**: Cross-origin resource sharing for web-based clients
-- 🔄 **Health Check Endpoints**: Built-in health monitoring at `/healthz` and `/readyz`
-- 🔄 **MCP Endpoint**: Main API endpoint at `/mcp` for all Model Context Protocol operations
+## Transport Endpoints
 
-#### 📡 Connecting to StreamableHTTP Server
+- StreamableHTTP MCP endpoint: `POST /mcp`
+- Health endpoints (SSE/Streamable only):
+  - `GET /healthz`
+  - `GET /readyz`
 
-```bash
-# Start the server
-./kubernetes-mcp server transport streamable --port 8080
+## Tooling Overview
 
-# Health check
-curl http://localhost:8081/healthz
+### 1. Generic Resource Operations
 
-# Initialize MCP session
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "initialize",
-    "params": {
-      "protocolVersion": "2024-11-05",
-      "capabilities": {},
-      "clientInfo": {"name": "my-client", "version": "1.0.0"}
-    },
-    "id": 1
-  }'
+For each API group prefix, the server exposes:
 
-# List available tools (using session ID from initialization response)
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "Mcp-Session-Id: <session-id>" \
-  -d '{"jsonrpc": "2.0", "method": "tools/list", "params": {}, "id": 2}'
+- `LIST_<PREFIX>_RESOURCES`
+- `GET_<PREFIX>_RESOURCE`
+- `DESCRIBE_<PREFIX>_RESOURCE`
+- `CREATE_<PREFIX>_RESOURCE`
+- `UPDATE_<PREFIX>_RESOURCE`
+- `DELETE_<PREFIX>_RESOURCE`
+
+Registered prefixes:
+
+- `K8S`
+
+### 2. Core/Cluster Utilities
+
+- `LIST_NAMESPACES`
+- `LIST_NODES`
+- `GET_POD_LOGS`
+- `ANALYZE_POD_LOGS`
+
+### 3. Utility Tools
+
+- `GET_CURRENT_TIME`
+- `GET_CLUSTER_INFO`
+- `GET_API_RESOURCES`
+- `SEARCH_RESOURCES`
+- `EXPLAIN_RESOURCE`
+- `APPLY_MANIFEST`
+- `VALIDATE_MANIFEST`
+- `DIFF_MANIFEST`
+- `GET_EVENTS`
+
+### 4. Prompt Tools
+
+- `KUBERNETES_YAML_PROMPT`
+- `KUBERNETES_QUERY_PROMPT`
+- `TROUBLESHOOT_PODS_PROMPT`
+- `TROUBLESHOOT_NODES_PROMPT`
+- `TROUBLESHOOT_NETWORK_PROMPT`
+
+### 5. Metrics Tools
+
+- `GET_NODE_METRICS`
+- `GET_POD_METRICS`
+- `GET_RESOURCE_METRICS`
+- `GET_TOP_CONSUMERS`
+
+## Architecture (k8s-style group/version)
+
+```text
+cmd/kubernetes-mcp/
+  main.go
+  app/
+pkg/
+  client/kubernetes/
+  config/
+  handlers/
+    apis/
+      core/v1/
+      apps/v1/
+    base/
+    tool/
+    prompt/
+    metrics/
+  server/
+  health/
+  logger/
 ```
 
-### 🔍 Structured Tools
+## Docker
 
-- 🔍 **GET_CLUSTER_INFO**: Get cluster information and version details
-- 🔍 **GET_API_RESOURCES**: List available API resources in the cluster
-- 🔍 **SEARCH_RESOURCES**: Search across namespaces and resource types
-- 🔍 **EXPLAIN_RESOURCE**: Get resource structure and field details
-- 🔍 **APPLY_MANIFEST**: Apply YAML manifests to the cluster
-- 🔍 **VALIDATE_MANIFEST**: Validate YAML manifest format
-- 🔍 **DIFF_MANIFEST**: Compare YAML with existing cluster resources
-- 🔍 **GET_EVENTS**: Get events related to specific resources
+Build:
 
-### 💡 Prompt System
+```bash
+docker build -t kubernetes-mcp:latest .
+```
 
-- 🔖 **KUBERNETES_YAML_PROMPT**: Generate standard Kubernetes YAML
-- 🔖 **KUBERNETES_QUERY_PROMPT**: Kubernetes operation guidance
-- 🔖 **TROUBLESHOOT_PODS_PROMPT**: Pod troubleshooting guide
-- 🔖 **TROUBLESHOOT_NODES_PROMPT**: Node troubleshooting guide
+Run with explicit transport command:
 
-### 🔄 Standard Resource Operations
+```bash
+docker run --rm -it \
+  -v ~/.kube:/root/.kube \
+  kubernetes-mcp:latest \
+  server transport stdio --kubeconfig /root/.kube/config
+```
 
-Each API group supports the following operations:
-- **List resources**: Get resource lists, filterable by namespace and labels
-- **Get resource**: Retrieve specific resources in YAML format
-- **Describe resource**: Get detailed readable descriptions of resources
-- **Create resource**: Create new resources from YAML
-- **Update resource**: Update existing resources using YAML
-- **Delete resource**: Remove specific resources
+## Kubernetes Deployment
 
-### 🌟 Core API Group Special Operations
+Deployment manifests are in `/deploy/kubernetes`.
 
-- **Get Pod logs**: Retrieve logs from specific Pod containers
-- **List namespaces**: View all available namespaces in the cluster
-- **List nodes**: View all nodes and their status in the cluster
+```bash
+make k8s-deploy
+# or
+make k8s-deploy-kustomize
+```
 
-### 📊 Log Analysis Features
+## Development
 
-- **Error Pattern Recognition**: Identifies common error patterns and frequencies
-- **Time-based Distribution Analysis**: Analyzes error occurrence patterns over time
-- **HTTP Status Code Tracking**: Monitors and categorizes HTTP response codes
-- **Performance Metrics**: Tracks response times and resource usage statistics
+```bash
+make build
+make test
+```
 
-### 📊 Cluster Metrics Features
+## Justfile + One-Click Skill Install
 
-- 🔍 **GET_NODE_METRICS**: Retrieve node resource usage metrics, including CPU and memory utilization
-- 🔍 **GET_POD_METRICS**: Get Pod resource usage metrics to monitor container CPU and memory consumption
-- 🔍 **GET_RESOURCE_METRICS**: Obtain overall cluster resource usage including CPU, memory, storage, and Pod count statistics
-- 🔍 **GET_TOP_CONSUMERS**: Identify Pods with highest resource consumption to pinpoint resource bottlenecks
+This repo includes a project usage skill at `skills/kubernetes-mcp-usage`.
 
-All metrics APIs support:
-- Flexible sorting: Sort by CPU, memory consumption or utilization percentage
-- Detailed filtering: Use field selectors and label selectors to target resources precisely
-- Result limitation: Control the number of returned results
-- JSON formatting: All responses are returned in structured JSON format for easy processing
+```bash
+# list just tasks
+just
 
-### 📝 Cluster Metrics Prompt System
+# common dev tasks
+just build
+just test
 
-- 🔖 **CLUSTER_RESOURCE_USAGE**: Guidance for retrieving cluster resource usage
-- 🔖 **NODE_RESOURCE_USAGE**: Guidance for retrieving node resource usage
-- 🔖 **POD_RESOURCE_USAGE**: Guidance for retrieving Pod resource usage
+# install the project skill into Codex
+just skill-install
 
-### 📋 API Response Formatting
+# overwrite existing install
+just skill-install-force
+```
 
-All API responses are now standardized in JSON format:
-- 🔸 **Structured Responses**: All API responses are returned in consistent JSON structures
-- 🔸 **Node Lists**: Include detailed information such as node name, status, roles, labels, taints, and allocatable resources
-- 🔸 **Namespace Lists**: Include namespace name, status, labels, annotations, and other details
-- 🔸 **Logs and Log Analysis**: Log content and analysis results are returned in structured format for easy processing
-- 🔸 **Resource Metrics**: CPU, memory, storage metrics are returned in structured format including raw values and percentages
-- 🔸 **Time Formatting**: Supports human-readable time formats in both English and Chinese, such as "5 minutes ago"/"5分钟前"
+Skill install destination:
+`$CODEX_HOME/skills/kubernetes-mcp-usage` (or `~/.codex/skills/kubernetes-mcp-usage` when `CODEX_HOME` is not set).
+
+After installing, restart Codex to pick up the skill.
+
+## Notes
+
+- Resource operations depend on your cluster API availability and RBAC permissions.
+- For network transports behind ingress/reverse proxy, set `--base-url` correctly for SSE.

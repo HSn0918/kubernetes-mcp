@@ -11,6 +11,7 @@ import (
 
 	humanize "github.com/dustin/go-humanize"
 	"github.com/hsn0918/kubernetes-mcp/pkg/client/kubernetes"
+	"github.com/hsn0918/kubernetes-mcp/pkg/logger"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	corev1 "k8s.io/api/core/v1"
@@ -62,10 +63,8 @@ func (h *ResourceHandlerImpl) Handle(ctx context.Context, request mcp.CallToolRe
 
 // Register 实现接口方法
 func (h *ResourceHandlerImpl) Register(server *server.MCPServer) {
-	// 注册父类的工具
-	h.baseHandler.Register(server)
-
-	// 额外注册Pod日志工具
+	// Generic CRUD tools are registered by the shared K8S resource handler.
+	// Core handler only exposes pod-log specific capabilities.
 	server.AddTool(mcp.NewTool(GET_POD_LOGS,
 		mcp.WithDescription("获取Kubernetes Pod的日志内容。支持实时日志和历史日志查询，可指定容器和日志行数。适用于应用程序调试、问题诊断、状态监控等场景。提供灵活的日志查询选项，帮助快速定位和分析问题。"),
 		mcp.WithString("name",
@@ -213,12 +212,16 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	previous, _ := arguments["previous"].(bool)
 	timestamps, _ := arguments["timestamps"].(bool)
 
-	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
-	reqLogger.Info("Starting pod logs request", "options", map[string]interface{}{
+	reqLogger := h.handler.Log.With(
+		logger.String("pod", name),
+		logger.String("namespace", namespace),
+		logger.String("container", container),
+	)
+	reqLogger.Info("Starting pod logs request", logger.Any("options", map[string]interface{}{
 		"tailLines":  tailLinesVal,
 		"previous":   previous,
 		"timestamps": timestamps,
-	})
+	}))
 
 	// --- 设置日志选项 ---
 	podLogOptions := &corev1.PodLogOptions{
@@ -251,7 +254,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	logRESTRequest := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
 	podLogsStream, err := logRESTRequest.Stream(ctx)
 	if err != nil {
-		reqLogger.Error("Failed to get pod logs stream", "error", err)
+		reqLogger.Error("Failed to get pod logs stream", logger.Any("error", err))
 		if errors.IsNotFound(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("Pod '%s' not found in namespace '%s'", name, namespace)), nil
 		}
@@ -263,7 +266,7 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	buf := new(bytes.Buffer)
 	_, err = io.CopyN(buf, podLogsStream, MAX_LOG_BYTES_LIMIT)
 	if err != nil && err != io.EOF {
-		reqLogger.Error("Failed to read pod logs stream fully", "error", err)
+		reqLogger.Error("Failed to read pod logs stream fully", logger.Any("error", err))
 	}
 
 	logsContent := buf.String()
@@ -331,9 +334,10 @@ func (h *ResourceHandlerImpl) GetPodLogs(
 	}
 
 	reqLogger.Info("Pod logs retrieved successfully",
-		"bytes", humanize.Bytes(uint64(logLengthBytes)),
-		"linesRetrieved", humanize.Comma(int64(actualLineCount)),
-		"linesDisplayed", humanize.Comma(int64(displayLineCount)))
+		logger.String("bytes", humanize.Bytes(uint64(logLengthBytes))),
+		logger.String("linesRetrieved", humanize.Comma(int64(actualLineCount))),
+		logger.String("linesDisplayed", humanize.Comma(int64(displayLineCount))),
+	)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -387,13 +391,17 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	customErrorPattern, _ := arguments["errorPattern"].(string)
 	prompt, _ := arguments["prompt"].(string)
 
-	reqLogger := h.handler.Log.With("pod", name, "namespace", namespace, "container", container)
-	reqLogger.Info("Starting pod logs analysis", "options", map[string]interface{}{
+	reqLogger := h.handler.Log.With(
+		logger.String("pod", name),
+		logger.String("namespace", namespace),
+		logger.String("container", container),
+	)
+	reqLogger.Info("Starting pod logs analysis", logger.Any("options", map[string]interface{}{
 		"tailLines":    tailLines,
 		"previous":     previous,
 		"errorPattern": customErrorPattern,
 		"prompt":       prompt,
-	})
+	}))
 
 	// --- 设置日志选项 ---
 	podLogOptions := &corev1.PodLogOptions{
@@ -410,7 +418,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	logRESTRequest := h.handler.Client.ClientSet().CoreV1().Pods(namespace).GetLogs(name, podLogOptions)
 	podLogsStream, err := logRESTRequest.Stream(ctx)
 	if err != nil {
-		reqLogger.Error("Failed to get pod logs stream for analysis", "error", err)
+		reqLogger.Error("Failed to get pod logs stream for analysis", logger.Any("error", err))
 		if errors.IsNotFound(err) {
 			return utils.NewErrorToolResult(fmt.Sprintf("Pod '%s' not found in namespace '%s'", name, namespace)), nil
 		}
@@ -422,7 +430,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 	buf := new(bytes.Buffer)
 	_, err = io.CopyN(buf, podLogsStream, MAX_LOG_BYTES_LIMIT)
 	if err != nil && err != io.EOF {
-		reqLogger.Error("Failed to read pod logs stream fully for analysis", "error", err)
+		reqLogger.Error("Failed to read pod logs stream fully for analysis", logger.Any("error", err))
 	}
 
 	logsContent := buf.String()
@@ -458,7 +466,7 @@ func (h *ResourceHandlerImpl) AnalyzePodLogs(
 		return utils.NewErrorToolResult(fmt.Sprintf("JSON序列化失败: %v", err)), nil
 	}
 
-	reqLogger.Info("Pod logs analysis completed", "linesAnalyzed", actualLineCount)
+	reqLogger.Info("Pod logs analysis completed", logger.Int("linesAnalyzed", actualLineCount))
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
